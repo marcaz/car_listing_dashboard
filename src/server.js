@@ -165,8 +165,13 @@ app.get("/api/dashboard", (_req, res) => {
 });
 
 app.post("/api/poll-now", async (_req, res) => {
-  await runPollCycle("manual");
-  res.json(buildDashboardPayload());
+  runPollCycle("manual");
+  res.status(202).json({
+    ok: true,
+    message: "Manual poll started.",
+    inProgress: pollInProgress,
+    lastPoll: store.getState().lastPoll,
+  });
 });
 
 app.post("/api/filters", async (req, res) => {
@@ -186,8 +191,14 @@ app.post("/api/filters", async (req, res) => {
   });
 
   resetPollingTimer();
-  await runPollCycle("filters-updated");
-  res.json(buildDashboardPayload());
+  runPollCycle("filters-updated");
+  res.status(202).json({
+    ok: true,
+    message: "Filters saved. Poll started in background.",
+    inProgress: pollInProgress,
+    filters: store.getState().filters,
+    lastPoll: store.getState().lastPoll,
+  });
 });
 
 app.get("/api/events", (req, res) => {
