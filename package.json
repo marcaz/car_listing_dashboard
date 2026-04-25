@@ -1,0 +1,32 @@
+{
+  "name": "car-listing-dashboard",
+  "version": "1.0.0",
+  "description": "Local dashboard for tracking newest Autoplius car listings.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/scraper.js && node --check src/state-store.js && node --check public/app.js",
+    "test": "npm run check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marcaz/car_listing_dashboard.git"
+  },
+  "keywords": [
+    "autoplius",
+    "scraper",
+    "dashboard",
+    "cars"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/marcaz/car_listing_dashboard/issues"
+  },
+  "homepage": "https://github.com/marcaz/car_listing_dashboard#readme",
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "express": "^5.2.1",
+    "playwright": "^1.59.1"
+  }
+}

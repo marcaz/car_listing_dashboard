@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Autoplius Car Listing Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="card controls">
+        <h1>Autoplius Listing Dashboard</h1>
+        <p class="muted">
+          Monitors your Autoplius search and highlights newly seen listings.
+        </p>
+        <form id="filters-form">
+          <label>
+            Search URL
+            <input id="search-url" name="searchUrl" type="url" required />
+          </label>
+
+          <div class="row">
+            <label>
+              Poll interval (seconds, min 15)
+              <input id="poll-interval" name="pollIntervalSec" type="number" min="15" />
+            </label>
+            <label>
+              NEW badge window (minutes)
+              <input id="new-badge" name="newBadgeMinutes" type="number" min="1" />
+            </label>
+          </div>
+
+          <div class="row">
+            <button type="submit">Save filters</button>
+            <button id="poll-now" type="button" class="secondary">Poll now</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card status">
+        <h2>Status</h2>
+        <dl>
+          <div>
+            <dt>Last poll</dt>
+            <dd id="status-last-poll">-</dd>
+          </div>
+          <div>
+            <dt>Mode</dt>
+            <dd id="status-source">-</dd>
+          </div>
+          <div>
+            <dt>Result</dt>
+            <dd id="status-message">-</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="card listings">
+        <div class="listings-head">
+          <h2>Listings</h2>
+          <span id="listings-count">0</span>
+        </div>
+        <div id="listing-feed" class="listing-feed"></div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
