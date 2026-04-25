@@ -2,7 +2,12 @@ const path = require("path");
 const express = require("express");
 const { StateStore } = require("./state-store");
 const { scrapeAutoplius } = require("./scraper");
-const { enrichListingsWithClaude, getClaudeAvailability } = require("./anthropic-parser");
+const {
+  enrichListingsWithClaude,
+  getClaudeAvailability,
+  getClaudeApiKeySource,
+  resolveAnthropicConfig,
+} = require("./anthropic-parser");
 
 const PORT = Number.parseInt(process.env.PORT || "3100", 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, "..", "data", "state.json");
@@ -92,6 +97,27 @@ function activeMonitorIdFromState(state) {
   return state.monitorOrder[0] || null;
 }
 
+function buildSettingsForPayload(rawSettings) {
+  const resolvedClaudeConfig = resolveAnthropicConfig(rawSettings?.claude || {});
+  const claudeAvailable = getClaudeAvailability(rawSettings?.claude || {});
+  const explicitModel =
+    typeof rawSettings?.claude?.model === "string" && rawSettings.claude.model.trim()
+      ? rawSettings.claude.model.trim()
+      : "";
+  return {
+    ...(rawSettings || {}),
+    claudeAvailable,
+    claudeApiKeySource: getClaudeApiKeySource(rawSettings?.claude || {}),
+    claude: {
+      ...(rawSettings?.claude || {}),
+      model: explicitModel || resolvedClaudeConfig.model,
+      apiKey: undefined,
+      hasApiKey: Boolean(resolvedClaudeConfig.apiKey),
+      apiKeyMasked: resolvedClaudeConfig.apiKey ? "********" : "",
+    },
+  };
+}
+
 function buildDashboardPayload() {
   const state = store.getState();
   const activeMonitorId = activeMonitorIdFromState(state);
@@ -112,10 +138,7 @@ function buildDashboardPayload() {
 
   return {
     activeMonitorId,
-    settings: {
-      ...(state.settings || {}),
-      claudeAvailable: getClaudeAvailability(),
-    },
+    settings: buildSettingsForPayload(state.settings),
     monitors,
     activeMonitor,
     generatedAt: toIsoNow(),
@@ -156,7 +179,7 @@ function createLastPollErrorSnapshot(previousLastPoll, message, reason) {
 function buildDefaultClaudeSnapshot() {
   return {
     used: false,
-    available: getClaudeAvailability(),
+    available: getClaudeAvailability(store.getState().settings?.claude || {}),
     message: "Claude fallback disabled.",
   };
 }
@@ -187,14 +210,15 @@ async function runPollCycle(monitorId, reason) {
 
     const claudeEnabled = Boolean(store.getState().settings?.claudeParsingEnabled);
     if (claudeEnabled) {
+      const claudeSettings = store.getState().settings?.claude || {};
       try {
         claudeEnrichment = await enrichListingsWithClaude(scrapeResult.listings, {
-          maxCandidates: 10,
+          settings: claudeSettings,
         });
       } catch (claudeError) {
         claudeEnrichment = {
           used: false,
-          available: getClaudeAvailability(),
+          available: getClaudeAvailability(claudeSettings),
           message: `Claude fallback error: ${claudeError.message}`,
         };
       }
@@ -385,16 +409,79 @@ app.get("/api/dashboard", (_req, res) => {
 });
 
 app.patch("/api/settings", async (req, res) => {
-  const { claudeParsingEnabled } = req.body || {};
+  const { claudeParsingEnabled, claude = {} } = req.body || {};
   if (typeof claudeParsingEnabled !== "boolean") {
     res.status(400).json({ error: "claudeParsingEnabled must be boolean." });
     return;
+  }
+  if (claude && typeof claude !== "object") {
+    res.status(400).json({ error: "claude must be an object." });
+    return;
+  }
+
+  const allowedReasoning = new Set(["low", "balanced", "high"]);
+  if (
+    claude.reasoningStrength !== undefined &&
+    (typeof claude.reasoningStrength !== "string" || !allowedReasoning.has(claude.reasoningStrength))
+  ) {
+    res.status(400).json({ error: "reasoningStrength must be one of: low, balanced, high." });
+    return;
+  }
+
+  const numericRules = [
+    ["maxCandidates", 1, 30],
+    ["minConfidence", 0, 1],
+    ["temperature", 0, 1],
+    ["maxTokens", 80, 1200],
+  ];
+  for (const [field, min, max] of numericRules) {
+    if (claude[field] === undefined) {
+      continue;
+    }
+    const parsed = Number(claude[field]);
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+      res.status(400).json({ error: `${field} must be between ${min} and ${max}.` });
+      return;
+    }
+  }
+
+  const integerFields = new Set(["maxCandidates", "maxTokens"]);
+  for (const field of integerFields) {
+    if (claude[field] === undefined) {
+      continue;
+    }
+    if (!Number.isInteger(Number(claude[field]))) {
+      res.status(400).json({ error: `${field} must be an integer.` });
+      return;
+    }
   }
 
   const updatedAt = toIsoNow();
   await store.update((draft) => {
     draft.settings = draft.settings || {};
     draft.settings.claudeParsingEnabled = claudeParsingEnabled;
+    draft.settings.claude = draft.settings.claude || {};
+    if (typeof claude.apiKey === "string") {
+      draft.settings.claude.apiKey = claude.apiKey.trim();
+    }
+    if (typeof claude.model === "string") {
+      draft.settings.claude.model = claude.model.trim();
+    }
+    if (typeof claude.reasoningStrength === "string") {
+      draft.settings.claude.reasoningStrength = claude.reasoningStrength;
+    }
+    if (claude.maxCandidates !== undefined) {
+      draft.settings.claude.maxCandidates = Number.parseInt(String(claude.maxCandidates), 10);
+    }
+    if (claude.minConfidence !== undefined) {
+      draft.settings.claude.minConfidence = Number(claude.minConfidence);
+    }
+    if (claude.temperature !== undefined) {
+      draft.settings.claude.temperature = Number(claude.temperature);
+    }
+    if (claude.maxTokens !== undefined) {
+      draft.settings.claude.maxTokens = Number.parseInt(String(claude.maxTokens), 10);
+    }
     draft.settings.updatedAt = updatedAt;
     return draft;
   });

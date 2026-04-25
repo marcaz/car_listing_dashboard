@@ -3,6 +3,15 @@ const els = {
   monitorsCount: document.getElementById("monitors-count"),
   claudeToggleBtn: document.getElementById("claude-toggle-btn"),
   claudeStatusText: document.getElementById("claude-status-text"),
+  claudeSettingsForm: document.getElementById("claude-settings-form"),
+  claudeApiKey: document.getElementById("claude-api-key"),
+  claudeModel: document.getElementById("claude-model"),
+  claudeReasoningStrength: document.getElementById("claude-reasoning-strength"),
+  claudeMaxCandidates: document.getElementById("claude-max-candidates"),
+  claudeMinConfidence: document.getElementById("claude-min-confidence"),
+  claudeTemperature: document.getElementById("claude-temperature"),
+  claudeMaxTokens: document.getElementById("claude-max-tokens"),
+  saveClaudeSettingsBtn: document.getElementById("save-claude-settings-btn"),
   addMonitorForm: document.getElementById("add-monitor-form"),
   addMonitorBtn: document.getElementById("add-monitor-btn"),
   addMonitorName: document.getElementById("add-monitor-name"),
@@ -32,6 +41,7 @@ const els = {
 
 const actionState = {
   togglingClaude: false,
+  savingClaudeSettings: false,
   addingMonitor: false,
   savingMonitor: false,
   pollingMonitor: false,
@@ -63,6 +73,7 @@ function setButtonLoading(button, isLoading, loadingLabel) {
 
 function applyLoadingStates() {
   setButtonLoading(els.claudeToggleBtn, actionState.togglingClaude, "Saving...");
+  setButtonLoading(els.saveClaudeSettingsBtn, actionState.savingClaudeSettings, "Saving...");
   setButtonLoading(els.addMonitorBtn, actionState.addingMonitor, "Adding...");
   setButtonLoading(els.saveMonitorBtn, actionState.savingMonitor, "Saving...");
   setButtonLoading(els.pollMonitorBtn, actionState.pollingMonitor, "Polling...");
@@ -78,6 +89,7 @@ function applyLoadingStates() {
 
 function renderClaudeControls(payload) {
   const settings = payload.settings || {};
+  const claudeSettings = settings.claude || {};
   const enabled = Boolean(settings.claudeParsingEnabled);
   const available = Boolean(settings.claudeAvailable);
   const label = enabled ? "Claude fallback ON" : "Claude fallback OFF";
@@ -94,6 +106,43 @@ function renderClaudeControls(payload) {
   if (!actionState.togglingClaude) {
     els.claudeToggleBtn.disabled = !available;
   }
+  if (els.claudeSettingsForm) {
+    for (const field of els.claudeSettingsForm.elements) {
+      if (!field || typeof field !== "object" || !("disabled" in field)) {
+        continue;
+      }
+      if (field.id === "save-claude-settings-btn") {
+        continue;
+      }
+      field.disabled = !available;
+    }
+  }
+  if (els.claudeApiKey) {
+    els.claudeApiKey.placeholder = claudeSettings.hasApiKey
+      ? `${claudeSettings.apiKeyMasked || "********"} (configured)`
+      : "sk-ant-...";
+    if (!actionState.savingClaudeSettings) {
+      els.claudeApiKey.value = "";
+    }
+  }
+  if (els.claudeModel) {
+    els.claudeModel.value = claudeSettings.model || "claude-3-5-haiku-latest";
+  }
+  if (els.claudeReasoningStrength) {
+    els.claudeReasoningStrength.value = claudeSettings.reasoningStrength || "balanced";
+  }
+  if (els.claudeMaxCandidates) {
+    els.claudeMaxCandidates.value = String(claudeSettings.maxCandidates ?? 10);
+  }
+  if (els.claudeMinConfidence) {
+    els.claudeMinConfidence.value = String(claudeSettings.minConfidence ?? 0.55);
+  }
+  if (els.claudeTemperature) {
+    els.claudeTemperature.value = String(claudeSettings.temperature ?? 0);
+  }
+  if (els.claudeMaxTokens) {
+    els.claudeMaxTokens.value = String(claudeSettings.maxTokens ?? 220);
+  }
 
   if (!available) {
     els.claudeStatusText.textContent =
@@ -102,7 +151,7 @@ function renderClaudeControls(payload) {
   }
 
   els.claudeStatusText.textContent = enabled
-    ? "Claude fallback enabled for missing fields (parser stays primary)."
+    ? `Claude fallback enabled (${settings.claudeApiKeySource || "unknown"} key source).`
     : "Deterministic parser only.";
 }
 
@@ -481,6 +530,45 @@ els.claudeToggleBtn.addEventListener("click", async () => {
     alert(`Failed to update Claude setting: ${error.message}`);
   } finally {
     actionState.togglingClaude = false;
+    applyLoadingStates();
+    if (appState.dashboard) {
+      renderClaudeControls(appState.dashboard);
+    }
+  }
+});
+
+els.claudeSettingsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (els.claudeToggleBtn.dataset.forceDisabled === "true") {
+    return;
+  }
+  const current = appState.dashboard?.settings || {};
+  const claudeCurrent = current.claude || {};
+  actionState.savingClaudeSettings = true;
+  applyLoadingStates();
+  try {
+    const payload = await callJson("/api/settings", "PATCH", {
+      claudeParsingEnabled: Boolean(current.claudeParsingEnabled),
+      claude: {
+        apiKey: els.claudeApiKey.value.trim() || undefined,
+        model: els.claudeModel.value.trim(),
+        reasoningStrength: els.claudeReasoningStrength.value,
+        maxCandidates: Number(els.claudeMaxCandidates.value),
+        minConfidence: Number(els.claudeMinConfidence.value),
+        temperature: Number(els.claudeTemperature.value),
+        maxTokens: Number(els.claudeMaxTokens.value),
+      },
+    });
+    renderDashboard(payload);
+    if (!els.claudeApiKey.value.trim() && claudeCurrent.hasApiKey) {
+      // Keep existing key when field is left empty.
+      return;
+    }
+    els.claudeApiKey.value = "";
+  } catch (error) {
+    alert(`Failed to save Claude settings: ${error.message}`);
+  } finally {
+    actionState.savingClaudeSettings = false;
     applyLoadingStates();
     if (appState.dashboard) {
       renderClaudeControls(appState.dashboard);

@@ -29,8 +29,19 @@ const DEFAULT_MONITOR_TEMPLATE = {
   updatedAt: null,
 };
 
+const DEFAULT_CLAUDE_SETTINGS = {
+  apiKey: "",
+  model: "claude-3-5-haiku-latest",
+  reasoningStrength: "balanced",
+  maxCandidates: 10,
+  minConfidence: 0.55,
+  temperature: 0,
+  maxTokens: 220,
+};
+
 const DEFAULT_SETTINGS = {
   claudeParsingEnabled: false,
+  claude: { ...DEFAULT_CLAUDE_SETTINGS },
   updatedAt: null,
 };
 
@@ -107,6 +118,63 @@ function normalizeSettings(rawSettings) {
     ...(rawSettings || {}),
   };
   merged.claudeParsingEnabled = Boolean(merged.claudeParsingEnabled);
+  merged.claude = normalizeClaudeSettings(rawSettings?.claude);
+  return merged;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function clampInteger(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(Math.max(parsed, min), max);
+}
+
+function normalizeClaudeSettings(rawClaudeSettings) {
+  const merged = {
+    ...structuredClone(DEFAULT_CLAUDE_SETTINGS),
+    ...(rawClaudeSettings || {}),
+  };
+
+  merged.apiKey = typeof merged.apiKey === "string" ? merged.apiKey.trim() : "";
+  merged.model =
+    typeof merged.model === "string" && merged.model.trim()
+      ? merged.model.trim()
+      : DEFAULT_CLAUDE_SETTINGS.model;
+
+  const allowedReasoningStrength = new Set(["low", "balanced", "high"]);
+  merged.reasoningStrength = allowedReasoningStrength.has(merged.reasoningStrength)
+    ? merged.reasoningStrength
+    : DEFAULT_CLAUDE_SETTINGS.reasoningStrength;
+
+  merged.maxCandidates = clampInteger(
+    merged.maxCandidates,
+    1,
+    30,
+    DEFAULT_CLAUDE_SETTINGS.maxCandidates
+  );
+  merged.minConfidence = clampNumber(
+    merged.minConfidence,
+    0,
+    1,
+    DEFAULT_CLAUDE_SETTINGS.minConfidence
+  );
+  merged.temperature = clampNumber(
+    merged.temperature,
+    0,
+    1,
+    DEFAULT_CLAUDE_SETTINGS.temperature
+  );
+  merged.maxTokens = clampInteger(merged.maxTokens, 80, 1200, DEFAULT_CLAUDE_SETTINGS.maxTokens);
+
   return merged;
 }
 

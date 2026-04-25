@@ -93,27 +93,37 @@ This project supports an optional second-stage parser using Anthropic Claude.
 - Claude is used only as a fallback for records with missing fields.
 - You can toggle this in UI from **Parser mode**.
 
-### Enable it
+### Configure from UI
 
-Set your API key before starting app:
+In **Parser mode** you can control:
+
+- API key
+- model
+- reasoning strength (`low`, `balanced`, `high`)
+- max candidates
+- minimum confidence
+- temperature
+- max tokens
+
+The parser mode toggle and settings are persisted in local state.
+
+### API key sources
+
+The app resolves Claude API key in this order:
+
+1. Saved in UI settings
+2. `ANTHROPIC_API_KEY` environment variable
+
+If neither is provided, Claude fallback stays unavailable and deterministic parser is used only.
+
+### Optional environment variables
+
+You may still use env vars:
 
 ```bash
 export ANTHROPIC_API_KEY="your_api_key_here"
-```
-
-Optional model override:
-
-```bash
 export ANTHROPIC_MODEL="claude-3-5-haiku-latest"
 ```
-
-Then run:
-
-```bash
-npm start
-```
-
-If `ANTHROPIC_API_KEY` is not set, the toggle remains unavailable and deterministic parser is used only.
 
 ## Troubleshooting
 

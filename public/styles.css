@@ -102,6 +102,18 @@ h2 {
   font-size: 0.78rem;
 }
 
+.claude-settings-form {
+  margin-top: 0.65rem;
+}
+
+select {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  background: #0f172a;
+  color: var(--text);
+}
+
 form {
   display: grid;
   gap: 0.75rem;
