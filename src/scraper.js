@@ -49,8 +49,54 @@ function textAroundNode($, node) {
 }
 
 function extractPriceFromText(value) {
-  const match = value.match(/\b\d[\d\s]{1,18}(?:€|eur)\b/i);
-  return match ? normalizeWhitespace(match[0]) : null;
+  const normalized = normalizeWhitespace(value);
+  const match = normalized.match(/\b\d{1,3}(?:[ \u00A0]\d{3})*(?:[.,]\d+)?\s*(?:€|eur)\b/i);
+  if (!match) {
+    return null;
+  }
+  return normalizeWhitespace(match[0].replace(/\beur\b/i, "€"));
+}
+
+function extractYearFromText(value) {
+  const match = normalizeWhitespace(value).match(/\b(19|20)\d{2}\b/);
+  return match ? Number.parseInt(match[0], 10) : null;
+}
+
+function extractModelFromTitle(title) {
+  const normalized = normalizeWhitespace(title);
+  if (!normalized) {
+    return null;
+  }
+
+  const yearMatch = normalized.match(/\b(19|20)\d{2}\b/);
+  if (yearMatch && Number.isInteger(yearMatch.index)) {
+    const beforeYear = normalized.slice(0, yearMatch.index).trim();
+    if (beforeYear) {
+      return beforeYear;
+    }
+  }
+
+  const firstBlock = normalized.split(" / ")[0]?.trim();
+  return firstBlock || null;
+}
+
+function extractCityFromText(value) {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const matches = [
+    ...normalized.matchAll(
+      /([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,40}),\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,40})/gu
+    ),
+  ];
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const lastLocation = matches[matches.length - 1][1];
+  return normalizeWhitespace(lastLocation);
 }
 
 function extractUpdatedHint(value) {
@@ -90,6 +136,9 @@ function parseListingAnchorsFallback(html) {
       const title = localText || `Autoplius listing #${id}`;
       const price = extractPriceFromText(composedText);
       const updatedText = extractUpdatedHint(composedText);
+      const year = extractYearFromText(title) || extractYearFromText(composedText);
+      const model = extractModelFromTitle(title);
+      const city = extractCityFromText(composedText);
       const imageUrl = absoluteAutopliusUrl(
         node.find("img").first().attr("src") || node.find("img").first().attr("data-src")
       );
@@ -100,6 +149,9 @@ function parseListingAnchorsFallback(html) {
         title,
         price: price || null,
         updatedText: updatedText || null,
+        model: model || null,
+        year: year || null,
+        city: city || null,
         imageUrl: imageUrl || null,
         url,
       });
@@ -131,12 +183,14 @@ function parseListingBlocks(html) {
       const title = normalizeWhitespace(
         node.find("h2,h3,[data-testid='title'],.announcement-title,a[title]").first().text()
       );
-      const price = normalizeWhitespace(
+      const blockText = normalizeWhitespace(node.text());
+      const priceFromSelector = normalizeWhitespace(
         node
           .find("[data-testid='price'],.announcement-price,.price,.sell-price,.main-price")
           .first()
           .text()
       );
+      const price = priceFromSelector || extractPriceFromText(`${title} ${blockText}`);
       const updatedText = normalizeWhitespace(
         node
           .find(
@@ -145,6 +199,9 @@ function parseListingBlocks(html) {
           .first()
           .text()
       );
+      const year = extractYearFromText(title) || extractYearFromText(blockText);
+      const model = extractModelFromTitle(title);
+      const city = extractCityFromText(`${title} ${blockText}`);
       const imageUrl = absoluteAutopliusUrl(node.find("img").first().attr("src"));
 
       seenIds.add(id);
@@ -153,6 +210,9 @@ function parseListingBlocks(html) {
         title: title || `Autoplius listing #${id}`,
         price: price || null,
         updatedText: updatedText || null,
+        model: model || null,
+        year: year || null,
+        city: city || null,
         imageUrl: imageUrl || null,
         url,
       });

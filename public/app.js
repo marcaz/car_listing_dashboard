@@ -87,6 +87,50 @@ function isRecentlyUpdated(listing) {
   return changedMs > firstSeenMs;
 }
 
+function extractPriceFromText(value) {
+  const match = (value || "")
+    .replace(/\s+/g, " ")
+    .match(/\b\d{1,3}(?:[ \u00A0]\d{3})*(?:[.,]\d+)?\s*(?:€|eur)\b/i);
+  return match ? match[0].replace(/\beur\b/i, "€").trim() : null;
+}
+
+function extractYearFromText(value) {
+  const match = (value || "").match(/\b(19|20)\d{2}\b/);
+  return match ? Number.parseInt(match[0], 10) : null;
+}
+
+function inferModel(listing) {
+  if (listing.model) {
+    return listing.model;
+  }
+  const title = (listing.title || "").replace(/\s+/g, " ").trim();
+  if (!title) {
+    return "Unknown model";
+  }
+  const yearMatch = title.match(/\b(19|20)\d{2}\b/);
+  if (yearMatch && Number.isInteger(yearMatch.index)) {
+    const model = title.slice(0, yearMatch.index).trim();
+    if (model) {
+      return model;
+    }
+  }
+  return title.split(" / ")[0]?.trim() || title;
+}
+
+function inferYear(listing) {
+  if (listing.year) {
+    return listing.year;
+  }
+  return extractYearFromText(listing.title);
+}
+
+function inferPrice(listing) {
+  if (listing.price) {
+    return listing.price;
+  }
+  return extractPriceFromText(listing.title);
+}
+
 function buildFilteredListings(activeMonitor, segment) {
   const listings = activeMonitor?.listings || [];
   if (segment === "new") {
@@ -125,52 +169,63 @@ function monitorCard(monitor, isActive) {
 
 function listingCard(listing) {
   const updated = isRecentlyUpdated(listing);
+  const model = inferModel(listing);
+  const year = inferYear(listing);
+  const price = inferPrice(listing) || "-";
+  const city = listing.city || "-";
   const wrapper = document.createElement("article");
   wrapper.className = `listing${listing.isNew ? " new" : ""}${updated ? " updated" : ""}${listing.isStale ? " stale" : ""}`;
 
-  const titleRow = document.createElement("div");
-  titleRow.className = "title-row";
+  const compactRow = document.createElement("div");
+  compactRow.className = "listing-main";
+
+  const modelCell = document.createElement("div");
+  modelCell.className = "listing-cell model";
   const link = document.createElement("a");
   link.href = listing.url;
-  link.textContent = listing.title || "Untitled listing";
+  link.textContent = model;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
-  titleRow.appendChild(link);
+  link.className = "model-link";
+  modelCell.appendChild(link);
+
+  const yearCell = document.createElement("div");
+  yearCell.className = "listing-cell";
+  yearCell.textContent = year || "-";
+
+  const priceCell = document.createElement("div");
+  priceCell.className = "listing-cell price";
+  priceCell.textContent = price;
+
+  const cityCell = document.createElement("div");
+  cityCell.className = "listing-cell city";
+  cityCell.textContent = city;
+
+  compactRow.append(modelCell, yearCell, priceCell, cityCell);
+
+  const badges = document.createElement("div");
+  badges.className = "listing-badges";
 
   if (listing.isNew) {
     const badge = document.createElement("span");
     badge.className = "badge new";
     badge.textContent = "NEW";
-    titleRow.appendChild(badge);
+    badges.appendChild(badge);
   }
   if (updated) {
     const badge = document.createElement("span");
     badge.className = "badge updated";
     badge.textContent = "UPDATED";
-    titleRow.appendChild(badge);
+    badges.appendChild(badge);
   }
   if (listing.isStale) {
     const badge = document.createElement("span");
     badge.className = "badge stale";
     badge.textContent = "NOT IN LATEST SCAN";
-    titleRow.appendChild(badge);
+    badges.appendChild(badge);
   }
 
-  const price = document.createElement("div");
-  price.className = "price";
-  price.textContent = listing.price || "Price unavailable";
-
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  const seen = document.createElement("span");
-  seen.textContent = `First seen: ${formatDateTime(listing.firstSeenAt)}`;
-  const changed = document.createElement("span");
-  changed.textContent = `Changed: ${formatDateTime(listing.lastChangedAt)}`;
-  const source = document.createElement("span");
-  source.textContent = `Autoplius info: ${listing.updatedText || "n/a"}`;
-  meta.append(seen, changed, source);
-
-  wrapper.append(titleRow, price, meta);
+  wrapper.append(compactRow, badges);
   return wrapper;
 }
 
