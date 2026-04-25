@@ -31,6 +31,7 @@ function buildDashboardPayload() {
   return {
     filters: state.filters,
     lastPoll: state.lastPoll,
+    pollingInProgress: pollInProgress,
     listings,
     generatedAt: toIsoNow(),
   };
@@ -48,6 +49,7 @@ async function runPollCycle(reason) {
     return;
   }
   pollInProgress = true;
+  broadcastUpdate("dashboard-update", buildDashboardPayload());
 
   const pollStartedAt = toIsoNow();
 
@@ -142,6 +144,7 @@ async function runPollCycle(reason) {
     broadcastUpdate("dashboard-update", buildDashboardPayload());
   } finally {
     pollInProgress = false;
+    broadcastUpdate("dashboard-update", buildDashboardPayload());
   }
 }
 

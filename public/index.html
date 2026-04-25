@@ -31,14 +31,24 @@
           </div>
 
           <div class="row">
-            <button type="submit">Save filters</button>
-            <button id="poll-now" type="button" class="secondary">Poll now</button>
+            <button id="save-filters" type="submit" class="btn">
+              <span class="btn-label">Save filters</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+            <button id="poll-now" type="button" class="btn secondary">
+              <span class="btn-label">Poll now</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
           </div>
         </form>
       </section>
 
       <section class="card status">
         <h2>Status</h2>
+        <div id="polling-indicator" class="polling-indicator idle" role="status" aria-live="polite">
+          <span class="poll-dot" aria-hidden="true"></span>
+          <span id="polling-text">Idle</span>
+        </div>
         <dl>
           <div>
             <dt>Last poll</dt>
