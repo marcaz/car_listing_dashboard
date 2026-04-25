@@ -96,17 +96,18 @@ function renderDashboard(payload) {
 }
 
 async function callJson(url, method, body) {
-  const response = await fetch(url, {
-    method,
-    headers: {
+  const options = { method };
+  if (body !== undefined) {
+    options.headers = {
       "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+    };
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(url, options);
   if (!response.ok) {
     throw new Error(`${method} ${url} failed (${response.status})`);
   }
-  return response.json();
+  return response.json().catch(() => ({}));
 }
 
 async function refreshDashboard() {
@@ -118,12 +119,12 @@ els.form.addEventListener("submit", async (event) => {
   event.preventDefault();
   els.form.querySelector("button[type='submit']").disabled = true;
   try {
-    const payload = await callJson("/api/filters", "POST", {
+    await callJson("/api/filters", "POST", {
       searchUrl: els.searchUrl.value.trim(),
       pollIntervalMs: Number(els.pollInterval.value) * 1000,
       newBadgeMinutes: Number(els.newBadge.value),
     });
-    renderDashboard(payload);
+    await refreshDashboard();
   } catch (error) {
     alert(`Failed to save filters: ${error.message}`);
   } finally {
@@ -134,8 +135,8 @@ els.form.addEventListener("submit", async (event) => {
 els.pollNow.addEventListener("click", async () => {
   els.pollNow.disabled = true;
   try {
-    const payload = await callJson("/api/poll-now", "POST");
-    renderDashboard(payload);
+    await callJson("/api/poll-now", "POST");
+    await refreshDashboard();
   } catch (error) {
     alert(`Manual poll failed: ${error.message}`);
   } finally {
