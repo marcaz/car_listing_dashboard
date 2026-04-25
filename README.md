@@ -31,6 +31,15 @@ Personal local dashboard for tracking newest Autoplius car listings based on you
    npx playwright install chromium
    ```
 
+   If you are on Windows and still see `Executable doesn't exist...chrome-headless-shell.exe`,
+   run:
+
+   ```bash
+   npx playwright install
+   ```
+
+   Then stop and start the server again (`npm start`).
+
 3. Start the dashboard:
 
    ```bash
@@ -74,3 +83,31 @@ If that happens, this app now reports an explicit error in Status and keeps prev
 - `npm start` - run server
 - `npm run check` - syntax checks for project JS files
 - `npm test` - alias for `npm run check`
+
+## Troubleshooting
+
+### Playwright browser missing (Windows/macOS/Linux)
+
+If dashboard status shows a message like:
+
+`Playwright browser is not installed`  
+or  
+`Executable doesn't exist ... chrome-headless-shell...`
+
+fix it with:
+
+```bash
+npx playwright install chromium
+```
+
+If the problem persists:
+
+```bash
+npx playwright install
+```
+
+Then restart the app:
+
+```bash
+npm start
+```
