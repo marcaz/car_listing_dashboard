@@ -162,9 +162,19 @@ function parseListingBlocks(html) {
 }
 
 async function fetchWithPlaywright(url) {
-  const browser = await chromium.launch({
-    headless: true,
-  });
+  let browser;
+  try {
+    browser = await chromium.launch({
+      headless: true,
+    });
+  } catch (error) {
+    if (/Executable doesn't exist/i.test(error.message || "")) {
+      throw new Error(
+        "Playwright browser is not installed. Run: npx playwright install chromium (or npx playwright install), then restart the server."
+      );
+    }
+    throw error;
+  }
 
   try {
     const context = await browser.newContext({
@@ -181,7 +191,9 @@ async function fetchWithPlaywright(url) {
     await context.close();
     return html;
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close();
+    }
   }
 }
 
