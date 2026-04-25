@@ -128,7 +128,35 @@ function inferPrice(listing) {
   if (listing.price) {
     return listing.price;
   }
-  return extractPriceFromText(listing.title);
+  const fromTitle = extractPriceFromText(listing.title);
+  if (fromTitle) {
+    return fromTitle;
+  }
+  return extractPriceFromText(listing.updatedText || "");
+}
+
+function inferCity(listing) {
+  if (listing.city) {
+    return listing.city;
+  }
+  const title = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ");
+  const locationMatch = title.match(/,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})(?:,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32}))?\s*$/u);
+  if (!locationMatch) {
+    return null;
+  }
+  return locationMatch[1]?.trim() || null;
+}
+
+function inferCountry(listing) {
+  if (listing.country) {
+    return listing.country;
+  }
+  const title = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ");
+  const locationMatch = title.match(/,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})(?:,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32}))?\s*$/u);
+  if (!locationMatch) {
+    return null;
+  }
+  return locationMatch[2]?.trim() || null;
 }
 
 function buildFilteredListings(activeMonitor, segment) {
@@ -172,7 +200,9 @@ function listingCard(listing) {
   const model = inferModel(listing);
   const year = inferYear(listing);
   const price = inferPrice(listing) || "-";
-  const city = listing.city || "-";
+  const city = inferCity(listing);
+  const country = inferCountry(listing);
+  const locationLabel = city && country ? `${city}, ${country}` : city || country || "-";
   const wrapper = document.createElement("article");
   wrapper.className = `listing${listing.isNew ? " new" : ""}${updated ? " updated" : ""}${listing.isStale ? " stale" : ""}`;
 
@@ -199,7 +229,7 @@ function listingCard(listing) {
 
   const cityCell = document.createElement("div");
   cityCell.className = "listing-cell city";
-  cityCell.textContent = city;
+  cityCell.textContent = locationLabel;
 
   compactRow.append(modelCell, yearCell, priceCell, cityCell);
 
