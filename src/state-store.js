@@ -29,8 +29,14 @@ const DEFAULT_MONITOR_TEMPLATE = {
   updatedAt: null,
 };
 
+const DEFAULT_SETTINGS = {
+  claudeParsingEnabled: false,
+  updatedAt: null,
+};
+
 const DEFAULT_STATE = {
   activeMonitorId: DEFAULT_MONITOR_ID,
+  settings: { ...DEFAULT_SETTINGS },
   monitorOrder: [DEFAULT_MONITOR_ID],
   monitorsById: {
     [DEFAULT_MONITOR_ID]: {
@@ -95,6 +101,15 @@ function normalizeMonitor(monitorId, rawMonitor) {
   return merged;
 }
 
+function normalizeSettings(rawSettings) {
+  const merged = {
+    ...structuredClone(DEFAULT_SETTINGS),
+    ...(rawSettings || {}),
+  };
+  merged.claudeParsingEnabled = Boolean(merged.claudeParsingEnabled);
+  return merged;
+}
+
 function normalizeNewFormat(rawState) {
   const monitorsById = {};
   const seenIds = new Set();
@@ -133,6 +148,7 @@ function normalizeNewFormat(rawState) {
 
   return {
     activeMonitorId,
+    settings: normalizeSettings(rawState?.settings),
     monitorOrder,
     monitorsById,
   };
@@ -153,6 +169,7 @@ function normalizeLegacyFormat(rawState) {
 
   return {
     activeMonitorId: DEFAULT_MONITOR_ID,
+    settings: normalizeSettings(rawState?.settings),
     monitorOrder: [DEFAULT_MONITOR_ID],
     monitorsById: {
       [DEFAULT_MONITOR_ID]: legacyMonitor,

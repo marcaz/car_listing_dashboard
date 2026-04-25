@@ -2,6 +2,7 @@ const path = require("path");
 const express = require("express");
 const { StateStore } = require("./state-store");
 const { scrapeAutoplius } = require("./scraper");
+const { enrichListingsWithClaude, getClaudeAvailability } = require("./anthropic-parser");
 
 const PORT = Number.parseInt(process.env.PORT || "3100", 10);
 const STATE_FILE = process.env.STATE_FILE || path.join(__dirname, "..", "data", "state.json");
@@ -111,6 +112,10 @@ function buildDashboardPayload() {
 
   return {
     activeMonitorId,
+    settings: {
+      ...(state.settings || {}),
+      claudeAvailable: getClaudeAvailability(),
+    },
     monitors,
     activeMonitor,
     generatedAt: toIsoNow(),
@@ -148,6 +153,14 @@ function createLastPollErrorSnapshot(previousLastPoll, message, reason) {
   };
 }
 
+function buildDefaultClaudeSnapshot() {
+  return {
+    used: false,
+    available: getClaudeAvailability(),
+    message: "Claude fallback disabled.",
+  };
+}
+
 function ensureMonitorExists(monitorId) {
   const state = store.getState();
   return Boolean(state.monitorsById[monitorId]);
@@ -169,7 +182,26 @@ async function runPollCycle(monitorId, reason) {
     }
 
     const scrapeResult = await scrapeAutoplius(monitorBefore.searchUrl);
-    const scrapeIds = new Set(scrapeResult.listings.map((item) => item.id));
+    let effectiveListings = scrapeResult.listings;
+    let claudeEnrichment = buildDefaultClaudeSnapshot();
+
+    const claudeEnabled = Boolean(store.getState().settings?.claudeParsingEnabled);
+    if (claudeEnabled) {
+      try {
+        claudeEnrichment = await enrichListingsWithClaude(scrapeResult.listings, {
+          maxCandidates: 10,
+        });
+      } catch (claudeError) {
+        claudeEnrichment = {
+          used: false,
+          available: getClaudeAvailability(),
+          message: `Claude fallback error: ${claudeError.message}`,
+        };
+      }
+      effectiveListings = claudeEnrichment.listings;
+    }
+
+    const scrapeIds = new Set(effectiveListings.map((item) => item.id));
     const addedIds = [];
     const updatedIds = [];
 
@@ -179,7 +211,7 @@ async function runPollCycle(monitorId, reason) {
         return draft;
       }
 
-      for (const incoming of scrapeResult.listings) {
+      for (const incoming of effectiveListings) {
         const existing = monitor.listingsById[incoming.id];
         if (!existing) {
           monitor.listingsById[incoming.id] = {
@@ -227,13 +259,15 @@ async function runPollCycle(monitorId, reason) {
         status: "ok",
         message:
           addedIds.length > 0
-            ? `Found ${addedIds.length} new listing(s) out of ${scrapeResult.listings.length} visible results.`
-            : `No new listings. ${scrapeResult.listings.length} visible results scanned.`,
+            ? `Found ${addedIds.length} new listing(s) out of ${effectiveListings.length} visible results.`
+            : `No new listings. ${effectiveListings.length} visible results scanned.`,
         addedIds,
         updatedIds,
-        totalSeenThisPoll: scrapeResult.listings.length,
+        totalSeenThisPoll: effectiveListings.length,
         source: scrapeResult.source,
         reason,
+        parserMode: claudeEnabled ? "deterministic+claude-optional" : "deterministic-only",
+        claude: claudeEnrichment,
       };
       monitor.updatedAt = pollStartedAt;
       return draft;
@@ -245,6 +279,8 @@ async function runPollCycle(monitorId, reason) {
         return draft;
       }
       monitor.lastPoll = createLastPollErrorSnapshot(monitor.lastPoll, error.message, reason);
+      monitor.lastPoll.claude = buildDefaultClaudeSnapshot();
+      monitor.lastPoll.parserMode = "deterministic-only";
       monitor.updatedAt = toIsoNow();
       return draft;
     });
@@ -345,6 +381,25 @@ async function updateMonitorConfig(monitorId, updates, reason) {
 }
 
 app.get("/api/dashboard", (_req, res) => {
+  res.json(buildDashboardPayload());
+});
+
+app.patch("/api/settings", async (req, res) => {
+  const { claudeParsingEnabled } = req.body || {};
+  if (typeof claudeParsingEnabled !== "boolean") {
+    res.status(400).json({ error: "claudeParsingEnabled must be boolean." });
+    return;
+  }
+
+  const updatedAt = toIsoNow();
+  await store.update((draft) => {
+    draft.settings = draft.settings || {};
+    draft.settings.claudeParsingEnabled = claudeParsingEnabled;
+    draft.settings.updatedAt = updatedAt;
+    return draft;
+  });
+
+  broadcastDashboardUpdate();
   res.json(buildDashboardPayload());
 });
 

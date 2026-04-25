@@ -1,6 +1,8 @@
 const els = {
   monitorList: document.getElementById("monitor-list"),
   monitorsCount: document.getElementById("monitors-count"),
+  claudeToggleBtn: document.getElementById("claude-toggle-btn"),
+  claudeStatusText: document.getElementById("claude-status-text"),
   addMonitorForm: document.getElementById("add-monitor-form"),
   addMonitorBtn: document.getElementById("add-monitor-btn"),
   addMonitorName: document.getElementById("add-monitor-name"),
@@ -29,6 +31,7 @@ const els = {
 };
 
 const actionState = {
+  togglingClaude: false,
   addingMonitor: false,
   savingMonitor: false,
   pollingMonitor: false,
@@ -44,8 +47,9 @@ function setButtonLoading(button, isLoading, loadingLabel) {
   if (!button) {
     return;
   }
+  const forceDisabled = button.dataset.forceDisabled === "true";
   button.dataset.loading = String(isLoading);
-  button.disabled = isLoading;
+  button.disabled = isLoading || forceDisabled;
   button.setAttribute("aria-busy", String(isLoading));
   const label = button.querySelector(".btn-label");
   if (!label) {
@@ -58,10 +62,48 @@ function setButtonLoading(button, isLoading, loadingLabel) {
 }
 
 function applyLoadingStates() {
+  setButtonLoading(els.claudeToggleBtn, actionState.togglingClaude, "Saving...");
   setButtonLoading(els.addMonitorBtn, actionState.addingMonitor, "Adding...");
   setButtonLoading(els.saveMonitorBtn, actionState.savingMonitor, "Saving...");
   setButtonLoading(els.pollMonitorBtn, actionState.pollingMonitor, "Polling...");
   setButtonLoading(els.deleteMonitorBtn, actionState.deletingMonitor, "Deleting...");
+  if (
+    els.claudeToggleBtn &&
+    els.claudeToggleBtn.dataset.forceDisabled === "true" &&
+    !actionState.togglingClaude
+  ) {
+    els.claudeToggleBtn.disabled = true;
+  }
+}
+
+function renderClaudeControls(payload) {
+  const settings = payload.settings || {};
+  const enabled = Boolean(settings.claudeParsingEnabled);
+  const available = Boolean(settings.claudeAvailable);
+  const label = enabled ? "Claude fallback ON" : "Claude fallback OFF";
+  els.claudeToggleBtn.dataset.enabled = String(enabled);
+  els.claudeToggleBtn.setAttribute("aria-pressed", String(enabled));
+  const labelNode = els.claudeToggleBtn.querySelector(".btn-label");
+  if (labelNode) {
+    labelNode.dataset.defaultLabel = label;
+    if (!actionState.togglingClaude) {
+      labelNode.textContent = label;
+    }
+  }
+  els.claudeToggleBtn.dataset.forceDisabled = String(!available);
+  if (!actionState.togglingClaude) {
+    els.claudeToggleBtn.disabled = !available;
+  }
+
+  if (!available) {
+    els.claudeStatusText.textContent =
+      "Claude fallback unavailable: set ANTHROPIC_API_KEY in environment.";
+    return;
+  }
+
+  els.claudeStatusText.textContent = enabled
+    ? "Claude fallback enabled for missing fields (parser stays primary)."
+    : "Deterministic parser only.";
 }
 
 function formatDateTime(iso) {
@@ -348,6 +390,7 @@ function renderSegments() {
 
 function renderDashboard(payload) {
   appState.dashboard = payload;
+  renderClaudeControls(payload);
   renderMonitorList(payload);
   renderSegments();
   renderActiveMonitor(payload);
@@ -419,6 +462,29 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
   } finally {
     actionState.addingMonitor = false;
     applyLoadingStates();
+  }
+});
+
+els.claudeToggleBtn.addEventListener("click", async () => {
+  if (els.claudeToggleBtn.dataset.forceDisabled === "true") {
+    return;
+  }
+  const current = Boolean(appState.dashboard?.settings?.claudeParsingEnabled);
+  actionState.togglingClaude = true;
+  applyLoadingStates();
+  try {
+    const payload = await callJson("/api/settings", "PATCH", {
+      claudeParsingEnabled: !current,
+    });
+    renderDashboard(payload);
+  } catch (error) {
+    alert(`Failed to update Claude setting: ${error.message}`);
+  } finally {
+    actionState.togglingClaude = false;
+    applyLoadingStates();
+    if (appState.dashboard) {
+      renderClaudeControls(appState.dashboard);
+    }
   }
 });
 

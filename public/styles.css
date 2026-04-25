@@ -98,6 +98,10 @@ h2 {
   margin-top: 0;
 }
 
+.tiny {
+  font-size: 0.78rem;
+}
+
 form {
   display: grid;
   gap: 0.75rem;
@@ -189,6 +193,12 @@ button {
   --btn-bg: color-mix(in srgb, #b91c1c 68%, #0f172a);
   --btn-border: color-mix(in srgb, #ef4444 68%, #7f1d1d);
   --btn-shadow: rgba(239, 68, 68, 0.32);
+}
+
+.toggle-btn[data-enabled="true"] {
+  --btn-bg: color-mix(in srgb, #065f46 75%, #0f172a);
+  --btn-border: color-mix(in srgb, var(--new) 65%, #064e3b);
+  --btn-shadow: rgba(52, 211, 153, 0.35);
 }
 
 .btn-spinner {
