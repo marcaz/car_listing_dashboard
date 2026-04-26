@@ -14,6 +14,7 @@ Personal local dashboard for tracking newest Autoplius car listings based on you
 
 - Node.js + Express backend
 - Playwright + Cheerio scraper
+- Optional Anthropic Claude fallback parser
 - Static frontend (HTML/CSS/JS)
 - JSON state storage at `data/state.json`
 
@@ -83,6 +84,46 @@ If that happens, this app now reports an explicit error in Status and keeps prev
 - `npm start` - run server
 - `npm run check` - syntax checks for project JS files
 - `npm test` - alias for `npm run check`
+
+## Optional Claude fallback parser
+
+This project supports an optional second-stage parser using Anthropic Claude.
+
+- Primary parser is still deterministic (regex + HTML parsing).
+- Claude is used only as a fallback for records with missing fields.
+- You can toggle this in UI from **Parser mode**.
+
+### Configure from UI
+
+In **Parser mode** you can control:
+
+- API key
+- model
+- reasoning strength (`low`, `balanced`, `high`)
+- max candidates
+- minimum confidence
+- temperature
+- max tokens
+
+The parser mode toggle and settings are persisted in local state.
+
+### API key sources
+
+The app resolves Claude API key in this order:
+
+1. Saved in UI settings
+2. `ANTHROPIC_API_KEY` environment variable
+
+If neither is provided, Claude fallback stays unavailable and deterministic parser is used only.
+
+### Optional environment variables
+
+You may still use env vars:
+
+```bash
+export ANTHROPIC_API_KEY="your_api_key_here"
+export ANTHROPIC_MODEL="claude-3-5-haiku-latest"
+```
 
 ## Troubleshooting
 

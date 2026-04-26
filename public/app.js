@@ -1,6 +1,17 @@
 const els = {
   monitorList: document.getElementById("monitor-list"),
   monitorsCount: document.getElementById("monitors-count"),
+  claudeToggleBtn: document.getElementById("claude-toggle-btn"),
+  claudeStatusText: document.getElementById("claude-status-text"),
+  claudeSettingsForm: document.getElementById("claude-settings-form"),
+  claudeApiKey: document.getElementById("claude-api-key"),
+  claudeModel: document.getElementById("claude-model"),
+  claudeReasoningStrength: document.getElementById("claude-reasoning-strength"),
+  claudeMaxCandidates: document.getElementById("claude-max-candidates"),
+  claudeMinConfidence: document.getElementById("claude-min-confidence"),
+  claudeTemperature: document.getElementById("claude-temperature"),
+  claudeMaxTokens: document.getElementById("claude-max-tokens"),
+  saveClaudeSettingsBtn: document.getElementById("save-claude-settings-btn"),
   addMonitorForm: document.getElementById("add-monitor-form"),
   addMonitorBtn: document.getElementById("add-monitor-btn"),
   addMonitorName: document.getElementById("add-monitor-name"),
@@ -29,6 +40,8 @@ const els = {
 };
 
 const actionState = {
+  togglingClaude: false,
+  savingClaudeSettings: false,
   addingMonitor: false,
   savingMonitor: false,
   pollingMonitor: false,
@@ -44,8 +57,9 @@ function setButtonLoading(button, isLoading, loadingLabel) {
   if (!button) {
     return;
   }
+  const forceDisabled = button.dataset.forceDisabled === "true";
   button.dataset.loading = String(isLoading);
-  button.disabled = isLoading;
+  button.disabled = isLoading || forceDisabled;
   button.setAttribute("aria-busy", String(isLoading));
   const label = button.querySelector(".btn-label");
   if (!label) {
@@ -58,10 +72,87 @@ function setButtonLoading(button, isLoading, loadingLabel) {
 }
 
 function applyLoadingStates() {
+  setButtonLoading(els.claudeToggleBtn, actionState.togglingClaude, "Saving...");
+  setButtonLoading(els.saveClaudeSettingsBtn, actionState.savingClaudeSettings, "Saving...");
   setButtonLoading(els.addMonitorBtn, actionState.addingMonitor, "Adding...");
   setButtonLoading(els.saveMonitorBtn, actionState.savingMonitor, "Saving...");
   setButtonLoading(els.pollMonitorBtn, actionState.pollingMonitor, "Polling...");
   setButtonLoading(els.deleteMonitorBtn, actionState.deletingMonitor, "Deleting...");
+  if (
+    els.claudeToggleBtn &&
+    els.claudeToggleBtn.dataset.forceDisabled === "true" &&
+    !actionState.togglingClaude
+  ) {
+    els.claudeToggleBtn.disabled = true;
+  }
+}
+
+function renderClaudeControls(payload) {
+  const settings = payload.settings || {};
+  const claudeSettings = settings.claude || {};
+  const enabled = Boolean(settings.claudeParsingEnabled);
+  const available = Boolean(settings.claudeAvailable);
+  const label = enabled ? "Claude fallback ON" : "Claude fallback OFF";
+  els.claudeToggleBtn.dataset.enabled = String(enabled);
+  els.claudeToggleBtn.setAttribute("aria-pressed", String(enabled));
+  const labelNode = els.claudeToggleBtn.querySelector(".btn-label");
+  if (labelNode) {
+    labelNode.dataset.defaultLabel = label;
+    if (!actionState.togglingClaude) {
+      labelNode.textContent = label;
+    }
+  }
+  els.claudeToggleBtn.dataset.forceDisabled = String(!available);
+  if (!actionState.togglingClaude) {
+    els.claudeToggleBtn.disabled = !available;
+  }
+  if (els.claudeSettingsForm) {
+    for (const field of els.claudeSettingsForm.elements) {
+      if (!field || typeof field !== "object" || !("disabled" in field)) {
+        continue;
+      }
+      if (field.id === "save-claude-settings-btn") {
+        continue;
+      }
+      field.disabled = !available;
+    }
+  }
+  if (els.claudeApiKey) {
+    els.claudeApiKey.placeholder = claudeSettings.hasApiKey
+      ? `${claudeSettings.apiKeyMasked || "********"} (configured)`
+      : "sk-ant-...";
+    if (!actionState.savingClaudeSettings) {
+      els.claudeApiKey.value = "";
+    }
+  }
+  if (els.claudeModel) {
+    els.claudeModel.value = claudeSettings.model || "claude-3-5-haiku-latest";
+  }
+  if (els.claudeReasoningStrength) {
+    els.claudeReasoningStrength.value = claudeSettings.reasoningStrength || "balanced";
+  }
+  if (els.claudeMaxCandidates) {
+    els.claudeMaxCandidates.value = String(claudeSettings.maxCandidates ?? 10);
+  }
+  if (els.claudeMinConfidence) {
+    els.claudeMinConfidence.value = String(claudeSettings.minConfidence ?? 0.55);
+  }
+  if (els.claudeTemperature) {
+    els.claudeTemperature.value = String(claudeSettings.temperature ?? 0);
+  }
+  if (els.claudeMaxTokens) {
+    els.claudeMaxTokens.value = String(claudeSettings.maxTokens ?? 220);
+  }
+
+  if (!available) {
+    els.claudeStatusText.textContent =
+      "Claude fallback unavailable: set ANTHROPIC_API_KEY in environment.";
+    return;
+  }
+
+  els.claudeStatusText.textContent = enabled
+    ? `Claude fallback enabled (${settings.claudeApiKeySource || "unknown"} key source).`
+    : "Deterministic parser only.";
 }
 
 function formatDateTime(iso) {
@@ -85,6 +176,78 @@ function isRecentlyUpdated(listing) {
     return false;
   }
   return changedMs > firstSeenMs;
+}
+
+function extractPriceFromText(value) {
+  const match = (value || "")
+    .replace(/\s+/g, " ")
+    .match(/\b\d{1,3}(?:[ \u00A0]\d{3})*(?:[.,]\d+)?\s*(?:€|eur)\b/i);
+  return match ? match[0].replace(/\beur\b/i, "€").trim() : null;
+}
+
+function extractYearFromText(value) {
+  const match = (value || "").match(/\b(19|20)\d{2}\b/);
+  return match ? Number.parseInt(match[0], 10) : null;
+}
+
+function inferModel(listing) {
+  if (listing.model) {
+    return listing.model;
+  }
+  const title = (listing.title || "").replace(/\s+/g, " ").trim();
+  if (!title) {
+    return "Unknown model";
+  }
+  const yearMatch = title.match(/\b(19|20)\d{2}\b/);
+  if (yearMatch && Number.isInteger(yearMatch.index)) {
+    const model = title.slice(0, yearMatch.index).trim();
+    if (model) {
+      return model;
+    }
+  }
+  return title.split(" / ")[0]?.trim() || title;
+}
+
+function inferYear(listing) {
+  if (listing.year) {
+    return listing.year;
+  }
+  return extractYearFromText(listing.title);
+}
+
+function inferPrice(listing) {
+  if (listing.price) {
+    return listing.price;
+  }
+  const fromTitle = extractPriceFromText(listing.title);
+  if (fromTitle) {
+    return fromTitle;
+  }
+  return extractPriceFromText(listing.updatedText || "");
+}
+
+function inferCity(listing) {
+  if (listing.city) {
+    return listing.city;
+  }
+  const title = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ");
+  const locationMatch = title.match(/,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})(?:,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32}))?\s*$/u);
+  if (!locationMatch) {
+    return null;
+  }
+  return locationMatch[1]?.trim() || null;
+}
+
+function inferCountry(listing) {
+  if (listing.country) {
+    return listing.country;
+  }
+  const title = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ");
+  const locationMatch = title.match(/,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})(?:,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32}))?\s*$/u);
+  if (!locationMatch) {
+    return null;
+  }
+  return locationMatch[2]?.trim() || null;
 }
 
 function buildFilteredListings(activeMonitor, segment) {
@@ -125,52 +288,65 @@ function monitorCard(monitor, isActive) {
 
 function listingCard(listing) {
   const updated = isRecentlyUpdated(listing);
+  const model = inferModel(listing);
+  const year = inferYear(listing);
+  const price = inferPrice(listing) || "-";
+  const city = inferCity(listing);
+  const country = inferCountry(listing);
+  const locationLabel = city && country ? `${city}, ${country}` : city || country || "-";
   const wrapper = document.createElement("article");
   wrapper.className = `listing${listing.isNew ? " new" : ""}${updated ? " updated" : ""}${listing.isStale ? " stale" : ""}`;
 
-  const titleRow = document.createElement("div");
-  titleRow.className = "title-row";
+  const compactRow = document.createElement("div");
+  compactRow.className = "listing-main";
+
+  const modelCell = document.createElement("div");
+  modelCell.className = "listing-cell model";
   const link = document.createElement("a");
   link.href = listing.url;
-  link.textContent = listing.title || "Untitled listing";
+  link.textContent = model;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
-  titleRow.appendChild(link);
+  link.className = "model-link";
+  modelCell.appendChild(link);
+
+  const yearCell = document.createElement("div");
+  yearCell.className = "listing-cell";
+  yearCell.textContent = year || "-";
+
+  const priceCell = document.createElement("div");
+  priceCell.className = "listing-cell price";
+  priceCell.textContent = price;
+
+  const cityCell = document.createElement("div");
+  cityCell.className = "listing-cell city";
+  cityCell.textContent = locationLabel;
+
+  compactRow.append(modelCell, yearCell, priceCell, cityCell);
+
+  const badges = document.createElement("div");
+  badges.className = "listing-badges";
 
   if (listing.isNew) {
     const badge = document.createElement("span");
     badge.className = "badge new";
     badge.textContent = "NEW";
-    titleRow.appendChild(badge);
+    badges.appendChild(badge);
   }
   if (updated) {
     const badge = document.createElement("span");
     badge.className = "badge updated";
     badge.textContent = "UPDATED";
-    titleRow.appendChild(badge);
+    badges.appendChild(badge);
   }
   if (listing.isStale) {
     const badge = document.createElement("span");
     badge.className = "badge stale";
     badge.textContent = "NOT IN LATEST SCAN";
-    titleRow.appendChild(badge);
+    badges.appendChild(badge);
   }
 
-  const price = document.createElement("div");
-  price.className = "price";
-  price.textContent = listing.price || "Price unavailable";
-
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  const seen = document.createElement("span");
-  seen.textContent = `First seen: ${formatDateTime(listing.firstSeenAt)}`;
-  const changed = document.createElement("span");
-  changed.textContent = `Changed: ${formatDateTime(listing.lastChangedAt)}`;
-  const source = document.createElement("span");
-  source.textContent = `Autoplius info: ${listing.updatedText || "n/a"}`;
-  meta.append(seen, changed, source);
-
-  wrapper.append(titleRow, price, meta);
+  wrapper.append(compactRow, badges);
   return wrapper;
 }
 
@@ -263,6 +439,7 @@ function renderSegments() {
 
 function renderDashboard(payload) {
   appState.dashboard = payload;
+  renderClaudeControls(payload);
   renderMonitorList(payload);
   renderSegments();
   renderActiveMonitor(payload);
@@ -334,6 +511,68 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
   } finally {
     actionState.addingMonitor = false;
     applyLoadingStates();
+  }
+});
+
+els.claudeToggleBtn.addEventListener("click", async () => {
+  if (els.claudeToggleBtn.dataset.forceDisabled === "true") {
+    return;
+  }
+  const current = Boolean(appState.dashboard?.settings?.claudeParsingEnabled);
+  actionState.togglingClaude = true;
+  applyLoadingStates();
+  try {
+    const payload = await callJson("/api/settings", "PATCH", {
+      claudeParsingEnabled: !current,
+    });
+    renderDashboard(payload);
+  } catch (error) {
+    alert(`Failed to update Claude setting: ${error.message}`);
+  } finally {
+    actionState.togglingClaude = false;
+    applyLoadingStates();
+    if (appState.dashboard) {
+      renderClaudeControls(appState.dashboard);
+    }
+  }
+});
+
+els.claudeSettingsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (els.claudeToggleBtn.dataset.forceDisabled === "true") {
+    return;
+  }
+  const current = appState.dashboard?.settings || {};
+  const claudeCurrent = current.claude || {};
+  actionState.savingClaudeSettings = true;
+  applyLoadingStates();
+  try {
+    const payload = await callJson("/api/settings", "PATCH", {
+      claudeParsingEnabled: Boolean(current.claudeParsingEnabled),
+      claude: {
+        apiKey: els.claudeApiKey.value.trim() || undefined,
+        model: els.claudeModel.value.trim(),
+        reasoningStrength: els.claudeReasoningStrength.value,
+        maxCandidates: Number(els.claudeMaxCandidates.value),
+        minConfidence: Number(els.claudeMinConfidence.value),
+        temperature: Number(els.claudeTemperature.value),
+        maxTokens: Number(els.claudeMaxTokens.value),
+      },
+    });
+    renderDashboard(payload);
+    if (!els.claudeApiKey.value.trim() && claudeCurrent.hasApiKey) {
+      // Keep existing key when field is left empty.
+      return;
+    }
+    els.claudeApiKey.value = "";
+  } catch (error) {
+    alert(`Failed to save Claude settings: ${error.message}`);
+  } finally {
+    actionState.savingClaudeSettings = false;
+    applyLoadingStates();
+    if (appState.dashboard) {
+      renderClaudeControls(appState.dashboard);
+    }
   }
 });
 
