@@ -184,14 +184,29 @@
             <span id="listings-count" class="count-pill">0</span>
           </div>
 
-          <div id="listing-segments" class="listing-segments" role="tablist" aria-label="Listing segments">
-            <button class="segment-btn active" data-segment="all" role="tab" aria-selected="true">
-              All
-            </button>
-            <button class="segment-btn" data-segment="new" role="tab" aria-selected="false">New</button>
-            <button class="segment-btn" data-segment="updated" role="tab" aria-selected="false">
-              Updated
-            </button>
+          <div class="listings-toolbar">
+            <div id="listing-segments" class="listing-segments" role="tablist" aria-label="Listing segments">
+              <button class="segment-btn active" data-segment="all" role="tab" aria-selected="true">
+                All
+              </button>
+              <button class="segment-btn" data-segment="new" role="tab" aria-selected="false">New</button>
+              <button class="segment-btn" data-segment="updated" role="tab" aria-selected="false">
+                Updated
+              </button>
+            </div>
+            <label class="sort-controls" for="listing-sort-by">
+              Sort by
+              <select id="listing-sort-by" class="sort-select">
+                <option value="newest">Newest first</option>
+                <option value="recently_changed">Recently changed</option>
+                <option value="price_asc">Price: low to high</option>
+                <option value="price_desc">Price: high to low</option>
+                <option value="year_desc">Year: newest first</option>
+                <option value="year_asc">Year: oldest first</option>
+                <option value="model_asc">Model: A-Z</option>
+                <option value="location_asc">Location: A-Z</option>
+              </select>
+            </label>
           </div>
 
           <div id="segment-summary" class="segment-summary muted"></div>

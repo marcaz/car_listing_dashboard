@@ -34,6 +34,7 @@ const els = {
   statusSource: document.getElementById("status-source"),
   statusMessage: document.getElementById("status-message"),
   listingSegments: document.getElementById("listing-segments"),
+  listingSortBy: document.getElementById("listing-sort"),
   segmentSummary: document.getElementById("segment-summary"),
   listingsCount: document.getElementById("listings-count"),
   listingFeed: document.getElementById("listing-feed"),
@@ -51,6 +52,7 @@ const actionState = {
 const appState = {
   dashboard: null,
   activeSegment: "all",
+  sortBy: "newest",
   expandedListingIds: new Set(),
   expandedListingMonitorId: null,
 };
@@ -250,6 +252,101 @@ function buildFilteredListings(activeMonitor, segment) {
     return listings.filter((listing) => isRecentlyUpdated(listing));
   }
   return listings;
+}
+
+function parsePriceAmount(listing) {
+  const raw = inferPrice(listing);
+  if (!raw) {
+    return Number.NaN;
+  }
+  const numeric = Number.parseFloat(String(raw).replace(/[^\d,.\-]/g, "").replace(",", "."));
+  return Number.isFinite(numeric) ? numeric : Number.NaN;
+}
+
+function compareTextAsc(a, b) {
+  return String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+}
+
+function sortListings(listings, sortBy) {
+  const sorted = [...(listings || [])];
+  switch (sortBy) {
+    case "price_asc":
+      sorted.sort((a, b) => {
+        const aPrice = parsePriceAmount(a);
+        const bPrice = parsePriceAmount(b);
+        const aFinite = Number.isFinite(aPrice);
+        const bFinite = Number.isFinite(bPrice);
+        if (!aFinite && !bFinite) {
+          return 0;
+        }
+        if (!aFinite) {
+          return 1;
+        }
+        if (!bFinite) {
+          return -1;
+        }
+        return aPrice - bPrice;
+      });
+      break;
+    case "price_desc":
+      sorted.sort((a, b) => {
+        const aPrice = parsePriceAmount(a);
+        const bPrice = parsePriceAmount(b);
+        const aFinite = Number.isFinite(aPrice);
+        const bFinite = Number.isFinite(bPrice);
+        if (!aFinite && !bFinite) {
+          return 0;
+        }
+        if (!aFinite) {
+          return 1;
+        }
+        if (!bFinite) {
+          return -1;
+        }
+        return bPrice - aPrice;
+      });
+      break;
+    case "year_desc":
+      sorted.sort((a, b) => {
+        const aYear = Number(inferYear(a));
+        const bYear = Number(inferYear(b));
+        const aFinite = Number.isFinite(aYear);
+        const bFinite = Number.isFinite(bYear);
+        if (!aFinite && !bFinite) {
+          return compareTextAsc(inferModel(a), inferModel(b));
+        }
+        if (!aFinite) {
+          return 1;
+        }
+        if (!bFinite) {
+          return -1;
+        }
+        if (bYear !== aYear) {
+          return bYear - aYear;
+        }
+        return compareTextAsc(inferModel(a), inferModel(b));
+      });
+      break;
+    case "model_asc":
+      sorted.sort((a, b) => compareTextAsc(inferModel(a), inferModel(b)));
+      break;
+    case "updated_desc":
+      sorted.sort((a, b) => {
+        const aChanged = Date.parse(a.lastChangedAt || "") || 0;
+        const bChanged = Date.parse(b.lastChangedAt || "") || 0;
+        return bChanged - aChanged;
+      });
+      break;
+    case "newest":
+    default:
+      sorted.sort((a, b) => {
+        const aFirstSeen = Date.parse(a.firstSeenAt || "") || 0;
+        const bFirstSeen = Date.parse(b.firstSeenAt || "") || 0;
+        return bFirstSeen - aFirstSeen;
+      });
+      break;
+  }
+  return sorted;
 }
 
 function formatConfidence(value) {
@@ -574,8 +671,14 @@ function renderActiveMonitor(payload) {
       appState.expandedListingIds.delete(listingId);
     }
   }
-  const filteredListings = buildFilteredListings(activeMonitor, appState.activeSegment);
+  const filteredListings = sortListings(
+    buildFilteredListings(activeMonitor, appState.activeSegment),
+    appState.sortBy
+  );
   els.listingsCount.textContent = String(filteredListings.length);
+  if (els.listingSortBy) {
+    els.listingSortBy.value = appState.sortBy;
+  }
 
   const normalizationSummary = activeMonitor.lastPoll?.normalization;
   const classificationSummary = activeMonitor.lastPoll?.changeClassification;
@@ -827,6 +930,19 @@ els.listingSegments.addEventListener("click", (event) => {
     renderDashboard(appState.dashboard);
   }
 });
+
+if (els.listingSortBy) {
+  els.listingSortBy.addEventListener("change", (event) => {
+    const nextSort = event.target.value || "newest";
+    if (nextSort === appState.sortBy) {
+      return;
+    }
+    appState.sortBy = nextSort;
+    if (appState.dashboard) {
+      renderActiveMonitor(appState.dashboard);
+    }
+  });
+}
 
 els.listingFeed.addEventListener("click", (event) => {
   const toggleButton = event.target.closest(".listing-expand-btn");

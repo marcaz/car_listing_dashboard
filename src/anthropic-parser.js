@@ -112,6 +112,32 @@ function normalizeCountryDeterministic(country) {
   return toTitleCase(normalized);
 }
 
+function inferLocationFromTextDeterministic(input) {
+  const normalized = sanitizeString(input);
+  if (!normalized) {
+    return { city: null, country: null };
+  }
+  const parts = normalized
+    .split(",")
+    .map((part) => sanitizeString(part))
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return { city: null, country: null };
+  }
+  if (parts.length === 1) {
+    return {
+      city: normalizeCityDeterministic(parts[0]),
+      country: null,
+    };
+  }
+  const countryCandidate = normalizeCountryDeterministic(parts[parts.length - 1]);
+  const cityCandidate = normalizeCityDeterministic(parts[parts.length - 2]);
+  return {
+    city: cityCandidate,
+    country: countryCandidate,
+  };
+}
+
 function clampNumber(value, min, max, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -234,6 +260,19 @@ function sanitizeNormalizationResult(raw) {
   }
   return {
     model: sanitizeString(raw.model),
+    city: sanitizeString(raw.city),
+    country: sanitizeString(raw.country),
+    confidence: Number.isFinite(Number(raw.confidence))
+      ? Math.max(0, Math.min(1, Number(raw.confidence)))
+      : null,
+  };
+}
+
+function sanitizeLocationRecoveryResult(raw) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  return {
     city: sanitizeString(raw.city),
     country: sanitizeString(raw.country),
     confidence: Number.isFinite(Number(raw.confidence))
@@ -566,8 +605,13 @@ async function normalizeListingsWithClaude(listings, options = {}) {
       country: listing.country,
     });
     listing.model = normalizeModelDeterministic(listing.model, listing.title) || listing.model || null;
-    listing.city = normalizeCityDeterministic(listing.city) || listing.city || null;
-    listing.country = normalizeCountryDeterministic(listing.country) || listing.country || null;
+    const deterministicLocation = inferLocationFromTextDeterministic(listing.updatedText || listing.title || "");
+    listing.city = normalizeCityDeterministic(listing.city) || deterministicLocation.city || listing.city || null;
+    listing.country =
+      normalizeCountryDeterministic(listing.country) ||
+      deterministicLocation.country ||
+      listing.country ||
+      null;
     const afterSnapshot = JSON.stringify({
       model: listing.model,
       city: listing.city,
@@ -596,6 +640,11 @@ async function normalizeListingsWithClaude(listings, options = {}) {
   const candidates = normalized.filter((listing) => !listing.model || !listing.city || !listing.country);
   const selected = candidates.slice(0, config.maxCandidates);
   let claudeUpdated = 0;
+
+  const missingLocationCandidates = normalized
+    .filter((listing) => !listing.city || !listing.country)
+    .slice(0, config.maxCandidates);
+  let claudeLocationRecovered = 0;
   for (const listing of selected) {
     try {
       const prompt = {
@@ -651,15 +700,69 @@ async function normalizeListingsWithClaude(listings, options = {}) {
     }
   }
 
+  for (const listing of missingLocationCandidates) {
+    try {
+      const prompt = {
+        task: "Recover missing listing location fields",
+        rules: [
+          "Return JSON only.",
+          "Extract probable city and country from listing context.",
+          "If only city can be inferred, set country to null.",
+          "If unknown, return null values.",
+        ],
+        output_schema: {
+          city: "string|null",
+          country: "string|null",
+          confidence: "number|null",
+        },
+        listing_context: {
+          id: listing.id,
+          title: listing.title || null,
+          model: listing.model || null,
+          city: listing.city || null,
+          country: listing.country || null,
+          updatedText: listing.updatedText || null,
+          url: listing.url || null,
+        },
+      };
+      const raw = await callAnthropicJson({ config, taskPayload: prompt });
+      const sanitized = sanitizeLocationRecoveryResult(raw);
+      if (!sanitized) {
+        continue;
+      }
+      if (sanitized.confidence !== null && sanitized.confidence < config.minConfidence) {
+        continue;
+      }
+      const beforeSnapshot = JSON.stringify({
+        city: listing.city,
+        country: listing.country,
+      });
+      listing.city = listing.city || normalizeCityDeterministic(sanitized.city) || sanitized.city || null;
+      listing.country =
+        listing.country || normalizeCountryDeterministic(sanitized.country) || sanitized.country || null;
+      const afterSnapshot = JSON.stringify({
+        city: listing.city,
+        country: listing.country,
+      });
+      if (beforeSnapshot !== afterSnapshot) {
+        listing.locationRecoveredByClaude = true;
+        claudeLocationRecovered += 1;
+      }
+    } catch {
+      // Keep current values when location recovery fails.
+    }
+  }
+
   return {
     listings: normalized,
     used: claudeUpdated > 0,
     available: true,
     deterministicUpdated,
     claudeUpdated,
+    claudeLocationRecovered,
     message:
-      claudeUpdated > 0
-        ? `Normalized ${deterministicUpdated + claudeUpdated} listing(s) (${claudeUpdated} via Claude).`
+      claudeUpdated > 0 || claudeLocationRecovered > 0
+        ? `Normalized ${deterministicUpdated + claudeUpdated} listing(s); recovered location on ${claudeLocationRecovered} listing(s) via Claude.`
         : `Deterministically normalized ${deterministicUpdated} listing(s).`,
     apiKeySource: config.apiKeySource,
   };

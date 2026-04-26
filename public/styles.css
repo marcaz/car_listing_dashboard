@@ -347,12 +347,33 @@ dd {
   align-items: center;
 }
 
-.listing-segments {
+.listings-toolbar {
   margin-top: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.listing-segments {
   display: inline-flex;
   border: 1px solid var(--card-border);
   border-radius: 9px;
   overflow: hidden;
+}
+
+.sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  min-width: auto;
+}
+
+#listing-sort {
+  min-width: 180px;
 }
 
 .segment-btn {
@@ -617,6 +638,20 @@ dd {
 }
 
 @media (max-width: 760px) {
+  .listings-toolbar {
+    align-items: stretch;
+  }
+
+  .sort-control {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  #listing-sort {
+    min-width: 0;
+    width: 100%;
+  }
+
   .listing-main {
     width: 100%;
     justify-content: space-between;
