@@ -4,9 +4,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Autoplius Car Listing Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body>
+  <body class="ui-redesign-v1">
+    <header class="topbar" role="banner">
+      <div class="topbar-brand">
+        <span class="brand-icon" aria-hidden="true">C</span>
+        <span class="brand-name">CarMon</span>
+      </div>
+      <div class="topbar-center">
+        <span id="topbar-active-monitor" class="topbar-monitor">No active monitor</span>
+      </div>
+      <div class="topbar-actions">
+        <span class="topbar-poll-pill">
+          <span id="topbar-poll-dot" class="topbar-poll-dot" aria-hidden="true"></span>
+          <span id="topbar-poll-state">Idle</span>
+        </span>
+        <span class="topbar-chip"><span id="topbar-listing-count">0</span> listings</span>
+      </div>
+    </header>
     <main class="layout">
       <aside class="card monitors-panel">
         <div class="panel-head">

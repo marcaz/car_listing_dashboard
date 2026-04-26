@@ -1,14 +1,22 @@
 :root {
   color-scheme: dark;
-  --bg: #111827;
-  --card: #1f2937;
-  --card-border: #374151;
-  --sub-card: #0f172a;
-  --text: #f9fafb;
-  --muted: #9ca3af;
-  --accent: #60a5fa;
-  --new: #34d399;
-  --stale: #f87171;
+  --bg: #07090f;
+  --card: #0d1219;
+  --card-border: #1a2235;
+  --sub-card: #111827;
+  --text: #eef0f8;
+  --muted: #8a9ab8;
+  --accent: #84b2ff;
+  --new: #48d6a8;
+  --stale: #ff7f7f;
+}
+
+body[data-theme="ember"] {
+  --accent: #ffb26b;
+}
+
+body[data-theme="pulse"] {
+  --accent: #7fd6ff;
 }
 
 * {
@@ -17,17 +25,19 @@
 
 body {
   margin: 0;
-  background: linear-gradient(170deg, #0f172a, #111827 55%);
+  background: radial-gradient(80% 130% at 0% 0%, #0f1828 0%, var(--bg) 55%);
   color: var(--text);
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: "DM Sans", Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 14px;
+  letter-spacing: 0.01em;
 }
 
 .layout {
-  max-width: 1320px;
+  max-width: 1360px;
   margin: 0 auto;
-  padding: 0.85rem;
+  padding: 1rem;
   display: grid;
-  gap: 1rem;
+  gap: 0.85rem;
   grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
   align-items: start;
 }
@@ -42,9 +52,12 @@ body {
 .card {
   background: color-mix(in srgb, var(--card) 90%, #000);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 1rem;
+  border-radius: 11px;
+  padding: 0.9rem;
   min-width: 0;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 18px 32px -28px rgba(0, 0, 0, 0.72);
 }
 
 .sub-card {
@@ -61,11 +74,16 @@ h2 {
 }
 
 h1 {
-  font-size: 1.15rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 h2 {
-  font-size: 1rem;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: color-mix(in srgb, var(--text) 92%, var(--accent) 8%);
 }
 
 .panel-head {
@@ -83,12 +101,13 @@ h2 {
 }
 
 .count-pill {
-  font-size: 0.78rem;
+  font-size: 0.67rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   border-radius: 999px;
-  padding: 0.22rem 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--card-border));
-  color: color-mix(in srgb, var(--accent) 90%, #fff);
-  background: color-mix(in srgb, var(--accent) 20%, #0f172a);
+  padding: 0.16rem 0.46rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--card-border));
+  color: color-mix(in srgb, var(--accent) 84%, #fff);
+  background: color-mix(in srgb, var(--accent) 12%, #080c14);
 }
 
 .url-chip {
@@ -107,6 +126,7 @@ h2 {
 .muted {
   color: var(--muted);
   margin-top: 0;
+  font-size: 0.8rem;
 }
 
 .tiny {
@@ -140,9 +160,9 @@ label {
 input,
 button {
   border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 0.55rem 0.75rem;
-  background: #0f172a;
+  border-radius: 7px;
+  padding: 0.5rem 0.66rem;
+  background: #0a111f;
   color: var(--text);
 }
 
@@ -167,13 +187,17 @@ input {
 }
 
 .btn {
-  --btn-bg: #2563eb;
-  --btn-border: #2563eb;
-  --btn-shadow: rgba(37, 99, 235, 0.35);
+  --btn-bg: color-mix(in srgb, var(--accent) 14%, #091324);
+  --btn-border: color-mix(in srgb, var(--accent) 36%, var(--card-border));
+  --btn-shadow: rgba(132, 178, 255, 0.24);
   cursor: pointer;
   border-color: var(--btn-border);
   background: var(--btn-bg);
+  color: var(--accent);
   font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -215,15 +239,17 @@ input {
 }
 
 .btn.secondary {
-  --btn-bg: transparent;
+  --btn-bg: #0a111f;
   --btn-border: var(--card-border);
   --btn-shadow: rgba(96, 165, 250, 0.2);
+  color: var(--muted);
 }
 
 .btn.danger {
-  --btn-bg: color-mix(in srgb, #b91c1c 68%, #0f172a);
-  --btn-border: color-mix(in srgb, #ef4444 68%, #7f1d1d);
+  --btn-bg: color-mix(in srgb, #b91c1c 32%, #0a111f);
+  --btn-border: color-mix(in srgb, #ef4444 42%, #7f1d1d);
   --btn-shadow: rgba(239, 68, 68, 0.32);
+  color: #ffd2d2;
 }
 
 .toggle-btn[data-enabled="true"] {
@@ -267,8 +293,8 @@ input {
   text-align: left;
   background: color-mix(in srgb, var(--sub-card) 88%, #000);
   border: 1px solid var(--card-border);
-  border-radius: 10px;
-  padding: 0.6rem 0.65rem;
+  border-radius: 8px;
+  padding: 0.52rem 0.56rem;
   color: var(--text);
   cursor: pointer;
   display: grid;
@@ -291,12 +317,14 @@ input {
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.88rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
 }
 
 .monitor-item .monitor-meta {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.67rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   display: flex;
   gap: 0.45rem;
   flex-wrap: wrap;
@@ -333,6 +361,112 @@ input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 0.15rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 168px;
+  height: 100%;
+  padding: 0 1rem;
+  border-right: 1px solid var(--card-border);
+}
+
+.brand-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #04070d;
+  background: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.brand-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.topbar-center {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 0.85rem;
+}
+
+.topbar-monitor {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.topbar-actions {
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  border-left: 1px solid var(--card-border);
+}
+
+.topbar-poll-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.52rem;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.topbar-poll-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: #59657d;
+}
+
+.topbar-poll-dot.active {
+  background: var(--new);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.topbar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--card-border));
+  color: color-mix(in srgb, var(--accent) 88%, #fff 12%);
+  background: color-mix(in srgb, var(--accent) 10%, #081021);
+  font-size: 0.66rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 .active-monitor-collapsed-summary {
@@ -424,10 +558,11 @@ dd {
   align-items: center;
   gap: 0.45rem;
   margin: 0 0 0.9rem;
-  padding: 0.35rem 0.6rem;
+  padding: 0.26rem 0.54rem;
   border-radius: 999px;
   border: 1px solid var(--card-border);
-  font-size: 0.83rem;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   color: var(--muted);
   background: color-mix(in srgb, #0f172a 78%, #000);
 }
@@ -526,9 +661,9 @@ dd {
 
 .listing {
   border: 1px solid var(--card-border);
-  border-radius: 10px;
-  padding: 0.55rem 0.65rem;
-  background: #111827;
+  border-radius: 9px;
+  padding: 0.44rem 0.52rem;
+  background: color-mix(in srgb, #111827 38%, var(--card));
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -568,7 +703,8 @@ dd {
 
 .listing-cell {
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.73rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   white-space: nowrap;
   min-width: 0;
   overflow: hidden;
@@ -585,7 +721,7 @@ dd {
 }
 
 .model-link {
-  color: #93c5fd;
+  color: color-mix(in srgb, var(--accent) 90%, #dbeafe 10%);
   text-decoration: none;
   font-weight: 600;
   display: inline-block;
@@ -596,8 +732,10 @@ dd {
 }
 
 .listing-cell.price {
-  color: #c7d2fe;
+  color: var(--text);
   font-weight: 600;
+  font-family: "DM Sans", Inter, system-ui, sans-serif;
+  font-size: 0.78rem;
 }
 
 .listing-badges {
@@ -617,11 +755,13 @@ dd {
 
 .listing-expand-btn {
   border: 1px solid var(--card-border);
-  border-radius: 7px;
-  padding: 0.22rem 0.5rem;
-  background: color-mix(in srgb, #0f172a 88%, #000);
-  color: var(--text);
-  font-size: 0.74rem;
+  border-radius: 6px;
+  padding: 0.14rem 0.4rem;
+  background: #0a111f;
+  color: var(--muted);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   cursor: pointer;
 }
 
@@ -714,8 +854,10 @@ dd {
 .badge {
   display: inline-block;
   border-radius: 999px;
-  padding: 0.1rem 0.42rem;
-  font-size: 0.67rem;
+  padding: 0.08rem 0.34rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .badge.new {
@@ -790,6 +932,41 @@ dd {
 }
 
 @media (max-width: 760px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    height: auto;
+    min-height: 46px;
+    gap: 0.4rem;
+    padding: 0.5rem 0.6rem;
+  }
+
+  .topbar-brand {
+    min-width: 0;
+    padding: 0;
+    border-right: 0;
+  }
+
+  .brand-name {
+    font-size: 0.7rem;
+  }
+
+  .topbar-center {
+    display: none;
+  }
+
+  .topbar-actions {
+    height: auto;
+    padding: 0;
+    border-left: 0;
+    gap: 0.35rem;
+  }
+
+  .topbar-poll-pill,
+  .topbar-chip {
+    font-size: 0.62rem;
+    padding: 0.12rem 0.36rem;
+  }
+
   .layout {
     padding: 0.6rem;
     gap: 0.75rem;
@@ -1034,13 +1211,13 @@ dd {
 .debug-log-feed {
   margin-top: 0.55rem;
   border: 1px solid var(--card-border);
-  border-radius: 8px;
-  background: #071124;
-  max-height: 190px;
+  border-radius: 7px;
+  background: #050a13;
+  max-height: 170px;
   overflow: auto;
   padding: 0.52rem 0.62rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 0.72rem;
+  font-size: 0.67rem;
   line-height: 1.36;
 }
 
@@ -1086,6 +1263,28 @@ dd {
 }
 
 @media (max-width: 1024px) {
+  .topbar {
+    position: static;
+    margin-bottom: 0.3rem;
+    border-bottom: 0;
+    border-radius: 10px;
+    border: 1px solid var(--card-border);
+    overflow: hidden;
+  }
+
+  .topbar-brand {
+    min-width: 0;
+    padding: 0 0.8rem;
+  }
+
+  .topbar-actions {
+    padding: 0 0.8rem;
+  }
+
+  .topbar-center {
+    padding: 0 0.55rem;
+  }
+
   .layout {
     grid-template-columns: 1fr;
   }

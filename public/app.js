@@ -1,4 +1,9 @@
 const els = {
+  dashboardThemeSelect: document.getElementById("dashboard-theme"),
+  topbarActiveMonitor: document.getElementById("topbar-active-monitor"),
+  topbarPollDot: document.getElementById("topbar-poll-dot"),
+  topbarPollState: document.getElementById("topbar-poll-state"),
+  topbarListingCount: document.getElementById("topbar-listing-count"),
   monitorList: document.getElementById("monitor-list"),
   monitorsCount: document.getElementById("monitors-count"),
   claudeToggleBtn: document.getElementById("claude-toggle-btn"),
@@ -67,6 +72,7 @@ const appState = {
   debugLogPaused: false,
   mobilePanelCollapsed: true,
   monitorSettingsCollapsed: true,
+  dashboardTheme: "ghost",
 };
 
 const DEBUG_LOG_LIMIT = 160;
@@ -89,6 +95,26 @@ function sanitizeDebugPayload(value) {
     output[key] = sanitizeDebugPayload(raw);
   }
   return output;
+}
+
+function sanitizeThemeName(rawValue) {
+  const value = String(rawValue || "").trim().toLowerCase();
+  if (value === "ember" || value === "pulse" || value === "ghost") {
+    return value;
+  }
+  return "ghost";
+}
+
+function applyDashboardTheme(themeName) {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const normalizedTheme = sanitizeThemeName(themeName || appState.dashboardTheme);
+  appState.dashboardTheme = normalizedTheme;
+  document.body.dataset.theme = normalizedTheme;
+  if (els.dashboardThemeSelect && els.dashboardThemeSelect.value !== normalizedTheme) {
+    els.dashboardThemeSelect.value = normalizedTheme;
+  }
 }
 
 function pushDebugLog(level, message, details) {
@@ -840,6 +866,9 @@ function renderActiveMonitor(payload) {
     appState.expandedListingIds.clear();
     appState.expandedListingMonitorId = null;
     els.activeMonitorTitle.textContent = "No active monitor";
+    if (els.topbarActiveMonitor) {
+      els.topbarActiveMonitor.textContent = "No active monitor";
+    }
     els.activeMonitorName.value = "";
     els.activeMonitorUrl.value = "";
     els.activePollInterval.value = 60;
@@ -847,6 +876,15 @@ function renderActiveMonitor(payload) {
     els.statusLastPoll.textContent = "-";
     els.statusSource.textContent = "-";
     els.statusMessage.textContent = "-";
+    if (els.topbarListingCount) {
+      els.topbarListingCount.textContent = "0";
+    }
+    if (els.topbarPollState) {
+      els.topbarPollState.textContent = "Idle";
+    }
+    if (els.topbarPollDot) {
+      els.topbarPollDot.classList.remove("active");
+    }
     if (els.activeMonitorSummaryTotal) {
       els.activeMonitorSummaryTotal.textContent = "0";
     }
@@ -868,18 +906,23 @@ function renderActiveMonitor(payload) {
   }
 
   els.activeMonitorTitle.textContent = activeMonitor.name;
+  if (els.topbarActiveMonitor) {
+    els.topbarActiveMonitor.textContent = activeMonitor.name || "Active monitor";
+  }
   els.activeMonitorName.value = activeMonitor.name || "";
   els.activeMonitorUrl.value = activeMonitor.searchUrl || "";
   els.activePollInterval.value = Math.round((activeMonitor.pollIntervalMs || 0) / 1000);
   els.activeNewBadge.value = activeMonitor.newBadgeMinutes || 120;
 
   const pollStatus = activeMonitor.lastPoll || {};
-  const pollLabel = `${formatDateTime(pollStatus.at)} (${pollStatus.status || "unknown"})`;
   els.statusLastPoll.textContent = pollStatus.at ? formatDateTime(pollStatus.at) : "-";
   els.statusSource.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
   els.statusMessage.textContent = formatCompactResultLabel(pollStatus.status, pollStatus.message);
 
   const allListings = activeMonitor.listings || [];
+  if (els.topbarListingCount) {
+    els.topbarListingCount.textContent = String(allListings.length);
+  }
   const updatedCount = allListings.reduce(
     (count, listing) => (isRecentlyUpdated(listing) ? count + 1 : count),
     0
@@ -903,6 +946,12 @@ function renderActiveMonitor(payload) {
   els.pollingText.textContent = pollingNow
     ? `Polling ${activeMonitor.name}...`
     : "Idle - waiting for next poll";
+  if (els.topbarPollState) {
+    els.topbarPollState.textContent = pollingNow ? "Polling" : "Idle";
+  }
+  if (els.topbarPollDot) {
+    els.topbarPollDot.classList.toggle("active", pollingNow);
+  }
   applyMonitorSettingsPanelState();
   if (appState.expandedListingMonitorId !== activeMonitor.id) {
     appState.expandedListingIds.clear();
@@ -1254,6 +1303,14 @@ if (els.listingSortBy) {
   });
 }
 
+if (els.dashboardThemeSelect) {
+  els.dashboardThemeSelect.addEventListener("change", (event) => {
+    const nextTheme = sanitizeThemeName(event.target.value);
+    applyDashboardTheme(nextTheme);
+    pushDebugLog("info", "Dashboard theme changed", { theme: nextTheme });
+  });
+}
+
 if (els.monitorPanelToggleBtn) {
   els.monitorPanelToggleBtn.addEventListener("click", () => {
     if (!isSmartphoneViewport()) {
@@ -1337,6 +1394,7 @@ refreshDashboard().catch((error) => {
 if (typeof window !== "undefined") {
   appState.mobilePanelCollapsed = isSmartphoneViewport();
 }
+applyDashboardTheme(appState.dashboardTheme);
 if (typeof window !== "undefined") {
   window.addEventListener("resize", applyMobilePanelState);
 }
