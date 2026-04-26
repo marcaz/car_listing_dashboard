@@ -233,15 +233,18 @@ function applyMonitorSettingsPanelState() {
 function formatCollapsedClaudeModeLabel(settings) {
   const s = settings || {};
   if (!s.claudeAvailable) {
-    return "Claude unavailable";
+    return { text: "Claude unavailable", tone: "unavailable" };
   }
-  return s.claudeParsingEnabled ? "Claude API on" : "Claude API off";
+  return s.claudeParsingEnabled
+    ? { text: "Claude API on", tone: "on" }
+    : { text: "Claude API off", tone: "off" };
 }
 
 function applyActiveMonitorPollStatusDisplay() {
   const grid = els.activeMonitorStatusGrid;
   const lastPollItem = els.statusItemLastPoll;
   const resultItem = els.statusItemResult;
+  const modeItem = els.statusItemMode;
   const modeDd = els.statusSource;
   const collapsed = appState.monitorSettingsCollapsed;
   const settings = appState.dashboard?.settings;
@@ -261,14 +264,24 @@ function applyActiveMonitorPollStatusDisplay() {
     return;
   }
 
+  const collapsedMode = formatCollapsedClaudeModeLabel(settings);
+  if (modeItem) {
+    modeItem.classList.toggle("status-item-mode-on", collapsed && collapsedMode.tone === "on");
+    modeItem.classList.toggle("status-item-mode-off", collapsed && collapsedMode.tone === "off");
+    modeItem.classList.toggle(
+      "status-item-mode-unavailable",
+      collapsed && collapsedMode.tone === "unavailable"
+    );
+  }
+
   if (!activeMonitor) {
-    modeDd.textContent = collapsed ? formatCollapsedClaudeModeLabel(settings) : "-";
+    modeDd.textContent = collapsed ? collapsedMode.text : "-";
     return;
   }
 
   const pollStatus = activeMonitor.lastPoll || {};
   if (collapsed) {
-    modeDd.textContent = formatCollapsedClaudeModeLabel(settings);
+    modeDd.textContent = collapsedMode.text;
   } else {
     modeDd.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
   }
@@ -443,15 +456,10 @@ function formatDateTime(iso) {
 }
 
 function isRecentlyUpdated(listing) {
-  if (!listing || !listing.lastChangedAt || !listing.firstSeenAt) {
+  if (!listing || !listing.changedInLastPoll) {
     return false;
   }
-  const changedMs = Date.parse(listing.lastChangedAt);
-  const firstSeenMs = Date.parse(listing.firstSeenAt);
-  if (!Number.isFinite(changedMs) || !Number.isFinite(firstSeenMs)) {
-    return false;
-  }
-  return changedMs > firstSeenMs;
+  return true;
 }
 
 function extractPriceFromText(value) {
@@ -936,7 +944,8 @@ function listingCard(listing) {
   if (updated) {
     const badge = document.createElement("span");
     badge.className = "badge updated";
-    badge.textContent = "UPDATED";
+    const sourceChangedAt = formatDateTime(listing.lastSourceChangeAt || listing.lastChangedAt);
+    badge.textContent = `UPDATED ${sourceChangedAt}`;
     badges.appendChild(badge);
   }
   if (listing.isStale) {

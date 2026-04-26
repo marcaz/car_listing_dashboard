@@ -198,6 +198,27 @@ function buildListingFingerprint(listing) {
   });
 }
 
+function normalizeTrackedField(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value).replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function buildSourceFingerprint(listing) {
+  return JSON.stringify({
+    title: normalizeTrackedField(listing?.title),
+    price: normalizeTrackedField(listing?.price),
+    model: normalizeTrackedField(listing?.model),
+    year: listing?.year || null,
+    city: normalizeTrackedField(listing?.city),
+    country: normalizeTrackedField(listing?.country),
+    updatedText: normalizeTrackedField(listing?.updatedText),
+    imageUrl: normalizeTrackedField(listing?.imageUrl),
+    url: normalizeTrackedField(listing?.url),
+  });
+}
+
 function detectReposts(effectiveListings, monitor) {
   const repostsById = new Map();
   if (!Array.isArray(effectiveListings) || !monitor) {
@@ -340,11 +361,15 @@ async function runPollCycle(monitorId, reason) {
         const existing = monitor.listingsById[incoming.id];
         if (!existing) {
           const repost = repostsById.get(incoming.id);
+          const incomingFingerprint = buildSourceFingerprint(incoming);
           monitor.listingsById[incoming.id] = {
             ...incoming,
             firstSeenAt: pollStartedAt,
             lastSeenAt: pollStartedAt,
             lastChangedAt: pollStartedAt,
+            lastSourceChangeAt: pollStartedAt,
+            sourceFingerprint: incomingFingerprint,
+            changedInLastPoll: false,
             isNew: true,
             repostOfId: repost?.repostOfId || null,
             changeType: repost ? "repost" : null,
@@ -364,12 +389,18 @@ async function runPollCycle(monitorId, reason) {
         }
 
         const changed = changedIds.has(incoming.id);
+        const incomingFingerprint = buildSourceFingerprint(incoming);
+        const previousFingerprint = existing.sourceFingerprint || buildSourceFingerprint(existing);
+        const sourceChanged = previousFingerprint !== incomingFingerprint;
 
         monitor.listingsById[incoming.id] = {
           ...existing,
           ...incoming,
           lastSeenAt: pollStartedAt,
           lastChangedAt: changed ? pollStartedAt : existing.lastChangedAt,
+          lastSourceChangeAt: sourceChanged ? pollStartedAt : existing.lastSourceChangeAt || null,
+          sourceFingerprint: incomingFingerprint,
+          changedInLastPoll: sourceChanged,
           changeType: existing.changeType || null,
           changeReason: existing.changeReason || null,
           changeConfidence: existing.changeConfidence || null,
@@ -420,6 +451,7 @@ async function runPollCycle(monitorId, reason) {
       for (const listingId of monitor.listingOrder) {
         if (!scrapeIds.has(listingId) && monitor.listingsById[listingId]) {
           monitor.listingsById[listingId].isStale = true;
+          monitor.listingsById[listingId].changedInLastPoll = false;
         } else if (monitor.listingsById[listingId]) {
           monitor.listingsById[listingId].isStale = false;
         }

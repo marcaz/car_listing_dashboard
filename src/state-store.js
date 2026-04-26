@@ -102,6 +102,21 @@ function normalizeMonitor(monitorId, rawMonitor) {
   if (!merged.listingsById || typeof merged.listingsById !== "object") {
     merged.listingsById = {};
   }
+  for (const [listingId, listing] of Object.entries(merged.listingsById)) {
+    if (!listing || typeof listing !== "object") {
+      delete merged.listingsById[listingId];
+      continue;
+    }
+    if (typeof listing.sourceFingerprint !== "string" || !listing.sourceFingerprint) {
+      listing.sourceFingerprint = "";
+    }
+    if (typeof listing.changedInLastPoll !== "boolean") {
+      listing.changedInLastPoll = false;
+    }
+    if (typeof listing.lastSourceChangeAt !== "string" || !listing.lastSourceChangeAt) {
+      listing.lastSourceChangeAt = listing.lastChangedAt || listing.firstSeenAt || null;
+    }
+  }
 
   if (!Array.isArray(merged.listingOrder)) {
     merged.listingOrder = [];

@@ -98,14 +98,20 @@
             </span>
           </div>
 
-          <div
-            id="polling-indicator"
-            class="polling-indicator idle"
-            role="status"
-            aria-live="polite"
-          >
-            <span class="poll-dot" aria-hidden="true"></span>
-            <span id="polling-text">Idle</span>
+          <div class="monitor-runtime-row">
+            <div
+              id="polling-indicator"
+              class="polling-indicator idle"
+              role="status"
+              aria-live="polite"
+            >
+              <span class="poll-dot" aria-hidden="true"></span>
+              <span id="polling-text">Idle</span>
+            </div>
+            <div id="status-item-mode" class="status-item status-item-mode">
+              <dt class="status-label">Mode</dt>
+              <dd id="status-source" class="status-value">-</dd>
+            </div>
           </div>
 
           <dl id="active-monitor-status-grid" class="status-grid">
@@ -116,10 +122,6 @@
             <div id="status-item-result" class="status-item">
               <dt class="status-label">Result</dt>
               <dd id="status-message" class="status-value">-</dd>
-            </div>
-            <div id="status-item-mode" class="status-item">
-              <dt class="status-label">Mode</dt>
-              <dd id="status-source" class="status-value">-</dd>
             </div>
           </dl>
 
