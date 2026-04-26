@@ -34,10 +34,13 @@ const els = {
   statusSource: document.getElementById("status-source"),
   statusMessage: document.getElementById("status-message"),
   listingSegments: document.getElementById("listing-segments"),
-  listingSortBy: document.getElementById("listing-sort"),
+  listingSortBy: document.getElementById("listing-sort-by"),
   segmentSummary: document.getElementById("segment-summary"),
   listingsCount: document.getElementById("listings-count"),
   listingFeed: document.getElementById("listing-feed"),
+  debugLogFeed: document.getElementById("debug-log-feed"),
+  debugLogClearBtn: document.getElementById("debug-log-clear-btn"),
+  debugLogPauseBtn: document.getElementById("debug-log-pause-btn"),
 };
 
 const actionState = {
@@ -55,7 +58,51 @@ const appState = {
   sortBy: "newest",
   expandedListingIds: new Set(),
   expandedListingMonitorId: null,
+  debugLogPaused: false,
 };
+
+const DEBUG_LOG_LIMIT = 160;
+
+function sanitizeDebugPayload(value) {
+  const sensitiveKeys = new Set(["apiKey", "apikey", "authorization", "token", "password", "secret"]);
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeDebugPayload(item));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const output = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const lowered = String(key || "").toLowerCase();
+    if (sensitiveKeys.has(lowered)) {
+      output[key] = raw ? "[MASKED]" : raw;
+      continue;
+    }
+    output[key] = sanitizeDebugPayload(raw);
+  }
+  return output;
+}
+
+function pushDebugLog(level, message, details) {
+  if (!els.debugLogFeed || appState.debugLogPaused) {
+    return;
+  }
+  const entry = document.createElement("div");
+  entry.className = `debug-log-entry ${level || "info"}`;
+  const timestamp = new Date().toLocaleTimeString();
+  const sanitizedDetails = details && typeof details === "object" ? sanitizeDebugPayload(details) : details;
+  const detailsText =
+    sanitizedDetails && typeof sanitizedDetails === "object"
+      ? ` ${JSON.stringify(sanitizedDetails)}`
+      : sanitizedDetails
+        ? ` ${String(sanitizedDetails)}`
+        : "";
+  entry.textContent = `[${timestamp}] ${String(message || "")}${detailsText}`;
+  els.debugLogFeed.prepend(entry);
+  while (els.debugLogFeed.children.length > DEBUG_LOG_LIMIT) {
+    els.debugLogFeed.removeChild(els.debugLogFeed.lastChild);
+  }
+}
 
 function setButtonLoading(button, isLoading, loadingLabel) {
   if (!button) {
@@ -721,9 +768,29 @@ function renderDashboard(payload) {
   renderSegments();
   renderActiveMonitor(payload);
   applyLoadingStates();
+  const activeMonitor = payload?.activeMonitor;
+  if (activeMonitor?.lastPoll) {
+    const claude = activeMonitor.lastPoll.claude || {};
+    const normalization = activeMonitor.lastPoll.normalization || {};
+    const classification = activeMonitor.lastPoll.changeClassification || {};
+    pushDebugLog(
+      "info",
+      `Dashboard update: poll=${activeMonitor.lastPoll.status || "unknown"}, source=${activeMonitor.lastPoll.source || "n/a"}, monitor=${activeMonitor.name || "n/a"}`,
+      {
+        parserMode: activeMonitor.lastPoll.parserMode || "n/a",
+        claudeUsed: Boolean(claude.used),
+        claudeMessage: claude.message || null,
+        normalizationMessage: normalization.message || null,
+        changeClassificationMessage: classification.message || null,
+      }
+    );
+  } else {
+    pushDebugLog("info", "Dashboard update received.");
+  }
 }
 
 async function callJson(url, method, body) {
+  pushDebugLog("info", `API ${method} ${url} request`, body && typeof body === "object" ? body : null);
   const options = { method };
   if (body !== undefined) {
     options.headers = {
@@ -740,12 +807,19 @@ async function callJson(url, method, body) {
     } catch {
       // Ignore parse failures.
     }
-    throw new Error(`${method} ${url} failed (${response.status})${details}`);
+    const errorMessage = `${method} ${url} failed (${response.status})${details}`;
+    pushDebugLog("error", errorMessage);
+    throw new Error(errorMessage);
   }
-  return response.json().catch(() => ({}));
+  const payload = await response.json().catch(() => ({}));
+  pushDebugLog("ok", `API ${method} ${url} success`, {
+    status: response.status,
+  });
+  return payload;
 }
 
 async function refreshDashboard() {
+  pushDebugLog("info", "Refreshing dashboard...");
   const payload = await callJson("/api/dashboard", "GET");
   renderDashboard(payload);
 }
@@ -760,9 +834,11 @@ els.monitorList.addEventListener("click", async (event) => {
     return;
   }
   try {
+    pushDebugLog("info", "Switching active monitor", { monitorId });
     const payload = await callJson(`/api/monitors/${monitorId}/activate`, "POST");
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to activate monitor", { monitorId, error: error.message });
     alert(`Failed to activate monitor: ${error.message}`);
   }
 });
@@ -772,6 +848,10 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
   actionState.addingMonitor = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Adding monitor", {
+      name: els.addMonitorName.value.trim() || null,
+      searchUrl: els.addMonitorUrl.value.trim() || null,
+    });
     const payload = await callJson("/api/monitors", "POST", {
       name: els.addMonitorName.value.trim(),
       searchUrl: els.addMonitorUrl.value.trim(),
@@ -784,6 +864,7 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
     els.addNewBadge.value = "120";
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to add monitor", { error: error.message });
     alert(`Failed to add monitor: ${error.message}`);
   } finally {
     actionState.addingMonitor = false;
@@ -799,11 +880,13 @@ els.claudeToggleBtn.addEventListener("click", async () => {
   actionState.togglingClaude = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Updating Claude toggle", { nextEnabled: !current });
     const payload = await callJson("/api/settings", "PATCH", {
       claudeParsingEnabled: !current,
     });
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to update Claude toggle", { error: error.message });
     alert(`Failed to update Claude setting: ${error.message}`);
   } finally {
     actionState.togglingClaude = false;
@@ -821,6 +904,15 @@ els.claudeSettingsForm.addEventListener("submit", async (event) => {
   actionState.savingClaudeSettings = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Saving Claude settings", {
+      model: els.claudeModel.value.trim(),
+      reasoningStrength: els.claudeReasoningStrength.value,
+      maxCandidates: Number(els.claudeMaxCandidates.value),
+      minConfidence: Number(els.claudeMinConfidence.value),
+      temperature: Number(els.claudeTemperature.value),
+      maxTokens: Number(els.claudeMaxTokens.value),
+      providedApiKey: Boolean(els.claudeApiKey.value.trim()),
+    });
     const payload = await callJson("/api/settings", "PATCH", {
       claudeParsingEnabled: Boolean(current.claudeParsingEnabled),
       claude: {
@@ -840,6 +932,7 @@ els.claudeSettingsForm.addEventListener("submit", async (event) => {
     }
     els.claudeApiKey.value = "";
   } catch (error) {
+    pushDebugLog("error", "Failed to save Claude settings", { error: error.message });
     alert(`Failed to save Claude settings: ${error.message}`);
   } finally {
     actionState.savingClaudeSettings = false;
@@ -860,6 +953,12 @@ els.activeMonitorForm.addEventListener("submit", async (event) => {
   actionState.savingMonitor = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Saving active monitor settings", {
+      monitorId,
+      searchUrl: els.activeMonitorUrl.value.trim(),
+      pollIntervalSeconds: Number(els.activePollInterval.value),
+      newBadgeMinutes: Number(els.activeNewBadge.value),
+    });
     const payload = await callJson(`/api/monitors/${monitorId}`, "PATCH", {
       name: els.activeMonitorName.value.trim(),
       searchUrl: els.activeMonitorUrl.value.trim(),
@@ -869,6 +968,7 @@ els.activeMonitorForm.addEventListener("submit", async (event) => {
     });
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to save active monitor", { monitorId, error: error.message });
     alert(`Failed to save monitor: ${error.message}`);
   } finally {
     actionState.savingMonitor = false;
@@ -884,9 +984,11 @@ els.pollMonitorBtn.addEventListener("click", async () => {
   actionState.pollingMonitor = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Triggering manual poll", { monitorId });
     await callJson(`/api/monitors/${monitorId}/poll-now`, "POST");
     await refreshDashboard();
   } catch (error) {
+    pushDebugLog("error", "Manual poll failed", { monitorId, error: error.message });
     alert(`Manual poll failed: ${error.message}`);
   } finally {
     actionState.pollingMonitor = false;
@@ -901,14 +1003,17 @@ els.deleteMonitorBtn.addEventListener("click", async () => {
     return;
   }
   if (!confirm(`Delete ${monitorName}? This removes its listing history.`)) {
+    pushDebugLog("info", "Delete monitor cancelled", { monitorId, monitorName });
     return;
   }
   actionState.deletingMonitor = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Deleting monitor", { monitorId, monitorName });
     const payload = await callJson(`/api/monitors/${monitorId}`, "DELETE");
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to delete monitor", { monitorId, error: error.message });
     alert(`Failed to delete monitor: ${error.message}`);
   } finally {
     actionState.deletingMonitor = false;
@@ -926,6 +1031,7 @@ els.listingSegments.addEventListener("click", (event) => {
     return;
   }
   appState.activeSegment = segment;
+  pushDebugLog("info", "Listing segment changed", { segment });
   if (appState.dashboard) {
     renderDashboard(appState.dashboard);
   }
@@ -938,8 +1044,30 @@ if (els.listingSortBy) {
       return;
     }
     appState.sortBy = nextSort;
+    pushDebugLog("info", "Listing sort changed", { sortBy: nextSort });
     if (appState.dashboard) {
       renderActiveMonitor(appState.dashboard);
+    }
+  });
+}
+
+if (els.debugLogClearBtn) {
+  els.debugLogClearBtn.addEventListener("click", () => {
+    if (els.debugLogFeed) {
+      els.debugLogFeed.innerHTML = "";
+    }
+    pushDebugLog("info", "Debug log cleared.");
+  });
+}
+
+if (els.debugLogPauseBtn) {
+  els.debugLogPauseBtn.addEventListener("click", () => {
+    appState.debugLogPaused = !appState.debugLogPaused;
+    els.debugLogPauseBtn.textContent = appState.debugLogPaused ? "Resume" : "Pause";
+    if (!appState.debugLogPaused) {
+      pushDebugLog("info", "Debug log resumed.");
+    } else {
+      pushDebugLog("warn", "Debug log paused.");
     }
   });
 }
@@ -965,20 +1093,26 @@ els.listingFeed.addEventListener("click", (event) => {
 
 function connectSse() {
   const events = new EventSource("/api/events");
+  pushDebugLog("info", "SSE connection opened.");
   events.addEventListener("dashboard-update", (event) => {
     try {
       renderDashboard(JSON.parse(event.data));
+      pushDebugLog("ok", "SSE dashboard-update received.");
     } catch {
       // Ignore malformed payloads.
+      pushDebugLog("error", "Malformed SSE dashboard payload.");
     }
   });
   events.onerror = () => {
+    pushDebugLog("error", "SSE connection error. Reconnecting in 3s.");
     events.close();
     setTimeout(connectSse, 3000);
   };
 }
 
 refreshDashboard().catch((error) => {
+  pushDebugLog("error", "Initial dashboard load failed", { error: error.message });
   alert(`Failed to load dashboard: ${error.message}`);
 });
+pushDebugLog("info", "Initial UI ready.");
 connectSse();

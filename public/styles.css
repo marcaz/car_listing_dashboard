@@ -33,6 +33,12 @@ body {
   overflow-x: hidden;
 }
 
+body {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
 .main-column {
   display: grid;
   gap: 1rem;
@@ -694,6 +700,61 @@ dd {
   border-radius: 10px;
   color: var(--muted);
   text-align: center;
+}
+
+.debug-log-panel {
+  margin-top: 0.2rem;
+}
+
+.debug-log-panel .panel-head {
+  align-items: center;
+}
+
+.btn.small {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.74rem;
+}
+
+.debug-log-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.debug-log-feed {
+  margin-top: 0.55rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: #071124;
+  max-height: 190px;
+  overflow: auto;
+  padding: 0.52rem 0.62rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.36;
+}
+
+.debug-log-entry {
+  color: #cbd5e1;
+  margin: 0 0 0.22rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.debug-log-entry.ok {
+  color: #86efac;
+}
+
+.debug-log-entry.warn {
+  color: #fcd34d;
+}
+
+.debug-log-entry.error {
+  color: #fca5a5;
+}
+
+.debug-log-entry:last-child {
+  margin-bottom: 0;
 }
 
 @keyframes spin {
