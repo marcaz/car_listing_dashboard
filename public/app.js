@@ -43,7 +43,7 @@ const els = {
   pollingText: document.getElementById("polling-text"),
   statusLastPoll: document.getElementById("status-last-poll"),
   statusMessage: document.getElementById("status-message"),
-  claudeStateInline: document.getElementById("claude-state-inline"),
+  claudeStateInline: document.getElementById("monitor-claude-indicator"),
   activeMonitorStatusGrid: document.getElementById("active-monitor-status-grid"),
   statusItemLastPoll: document.getElementById("status-item-last-poll"),
   statusItemResult: document.getElementById("status-item-result"),
