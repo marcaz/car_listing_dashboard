@@ -462,6 +462,10 @@ input {
   gap: 0.34rem;
 }
 
+.status-grid.status-grid--monitor-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .status-item {
   min-width: 0;
   border: 1px solid color-mix(in srgb, var(--card-border) 76%, transparent);

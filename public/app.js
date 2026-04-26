@@ -44,6 +44,10 @@ const els = {
   statusLastPoll: document.getElementById("status-last-poll"),
   statusSource: document.getElementById("status-source"),
   statusMessage: document.getElementById("status-message"),
+  activeMonitorStatusGrid: document.getElementById("active-monitor-status-grid"),
+  statusItemLastPoll: document.getElementById("status-item-last-poll"),
+  statusItemResult: document.getElementById("status-item-result"),
+  statusItemMode: document.getElementById("status-item-mode"),
   listingSegments: document.getElementById("listing-segments"),
   listingSortBy: document.getElementById("listing-sort"),
   listingsStatsStrip: document.getElementById("listings-stats-strip"),
@@ -223,6 +227,51 @@ function applyMonitorSettingsPanelState() {
     collapsedSummary.hidden = !collapsed;
     collapsedSummary.setAttribute("aria-hidden", String(!collapsed));
   }
+  applyActiveMonitorPollStatusDisplay();
+}
+
+function formatCollapsedClaudeModeLabel(settings) {
+  const s = settings || {};
+  if (!s.claudeAvailable) {
+    return "Claude unavailable";
+  }
+  return s.claudeParsingEnabled ? "Claude API on" : "Claude API off";
+}
+
+function applyActiveMonitorPollStatusDisplay() {
+  const grid = els.activeMonitorStatusGrid;
+  const lastPollItem = els.statusItemLastPoll;
+  const resultItem = els.statusItemResult;
+  const modeDd = els.statusSource;
+  const collapsed = appState.monitorSettingsCollapsed;
+  const settings = appState.dashboard?.settings;
+  const activeMonitor = appState.dashboard?.activeMonitor;
+
+  if (grid) {
+    grid.classList.toggle("status-grid--monitor-collapsed", collapsed);
+  }
+  for (const el of [lastPollItem, resultItem]) {
+    if (el) {
+      el.hidden = collapsed;
+      el.setAttribute("aria-hidden", String(collapsed));
+    }
+  }
+
+  if (!modeDd) {
+    return;
+  }
+
+  if (!activeMonitor) {
+    modeDd.textContent = collapsed ? formatCollapsedClaudeModeLabel(settings) : "-";
+    return;
+  }
+
+  const pollStatus = activeMonitor.lastPoll || {};
+  if (collapsed) {
+    modeDd.textContent = formatCollapsedClaudeModeLabel(settings);
+  } else {
+    modeDd.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
+  }
 }
 
 function formatCompactModeLabel(mode) {
@@ -372,12 +421,14 @@ function renderClaudeControls(payload) {
   if (!available) {
     els.claudeStatusText.textContent =
       "Claude fallback currently unavailable. Set API key below and save settings.";
+    applyActiveMonitorPollStatusDisplay();
     return;
   }
 
   els.claudeStatusText.textContent = enabled
     ? `Claude fallback enabled (${settings.claudeApiKeySource || "unknown"} key source).`
     : "Deterministic parser only.";
+  applyActiveMonitorPollStatusDisplay();
 }
 
 function formatDateTime(iso) {
@@ -950,8 +1001,8 @@ function renderActiveMonitor(payload) {
     els.activePollInterval.value = 60;
     els.activeNewBadge.value = 120;
     els.statusLastPoll.textContent = "-";
-    els.statusSource.textContent = "-";
     els.statusMessage.textContent = "-";
+    applyActiveMonitorPollStatusDisplay();
     if (els.topbarListingCount) {
       els.topbarListingCount.textContent = "0";
     }
@@ -995,8 +1046,8 @@ function renderActiveMonitor(payload) {
 
   const pollStatus = activeMonitor.lastPoll || {};
   els.statusLastPoll.textContent = pollStatus.at ? formatDateTime(pollStatus.at) : "-";
-  els.statusSource.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
   els.statusMessage.textContent = formatCompactResultLabel(pollStatus.status, pollStatus.message);
+  applyActiveMonitorPollStatusDisplay();
 
   const allListings = activeMonitor.listings || [];
   if (els.topbarListingCount) {
