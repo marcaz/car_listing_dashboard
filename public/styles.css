@@ -685,10 +685,6 @@ input {
   white-space: nowrap;
 }
 
-.monitor-detail .panel-head {
-  align-items: flex-start;
-}
-
 .monitor-settings-toggle-btn .monitor-settings-toggle-icon-hide {
   display: none;
 }
