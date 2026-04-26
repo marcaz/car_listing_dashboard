@@ -30,4 +30,13 @@ test("normalizes location labels without accepting vehicle specs", () => {
   assert.equal(normalizeCityName("2026 benzinas automatin"), null);
   assert.equal(normalizeCountryName("lt"), "Lithuania");
   assert.equal(normalizeCityName("Lithuania"), null);
+  assert.deepEqual(extractLocationFromText("Kaunas, Krosoveris"), {
+    city: "Kaunas",
+    country: null,
+  });
+  assert.deepEqual(extractLocationFromText("Krosoveris"), {
+    city: null,
+    country: null,
+  });
+  assert.equal(normalizeCountryName("Krosoveris"), null);
 });

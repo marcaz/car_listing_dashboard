@@ -568,9 +568,18 @@ const KNOWN_LOCATION_CITY_NAMES = new Map(
 const KNOWN_LOCATION_COUNTRY_NAMES = new Set(["lietuva", "lithuania", "latvija", "latvia", "estija", "estonia"]);
 const LOCATION_CITY_ALIASES = new Map([["vilniaus", "Vilnius"]]);
 
+function isVehicleSpecLocationNoise(value) {
+  return /\b(?:krosoveris|crossover|visureigis|sedanas|universalas|he[cč]bekas|kup[ėe]|benzinas|dyzelinas|elektra|hibrid|automatin|mechanin|kw|km)\b/i.test(
+    String(value || "")
+  );
+}
+
 function normalizeCountryDisplayName(value) {
   const normalized = String(value || "").replace(/\s+/g, " ").trim();
   if (!normalized || normalized.length > 32) {
+    return null;
+  }
+  if (/\d/.test(normalized) || isVehicleSpecLocationNoise(normalized)) {
     return null;
   }
   const aliases = new Map([
@@ -598,7 +607,7 @@ function normalizeCityDisplayName(value) {
   if (!normalized || normalized.length > 42) {
     return null;
   }
-  if (/\d/.test(normalized) || /€|eur|kw|km|benzinas|dyzelinas|automatin|sedan|visureig|krosover/i.test(normalized)) {
+  if (/\d/.test(normalized) || /€|eur/i.test(normalized) || isVehicleSpecLocationNoise(normalized)) {
     return null;
   }
   if (!/^[\p{L}\-.' ]{2,42}$/u.test(normalized)) {
@@ -659,6 +668,9 @@ function sanitizeLocationDisplayValue(value) {
     .replace(/\s+/g, " ")
     .trim();
   if (!normalized) {
+    return null;
+  }
+  if (isVehicleSpecLocationNoise(normalized)) {
     return null;
   }
   if (normalized.length > 42) {

@@ -90,12 +90,18 @@ const CITY_ALIASES = new Map([
   ["panevezio", "Panevėžys"],
 ]);
 
+function looksLikeVehicleSpecLocation(value) {
+  return /€|eur|kw|km|benzinas|dyzelinas|automatin|mechanin|sedan|visureig|krosover|universalas|hečbek|hecbek|kupė|kupe|kabriolet|vienatūris|vienaturis/i.test(
+    value || ""
+  );
+}
+
 function normalizeCountryName(value) {
   const normalized = normalizeWhitespace(value);
   if (!normalized || normalized.length > 32) {
     return null;
   }
-  if (/\d/.test(normalized) || /€|eur|kw|km|benzinas|dyzelinas|automatin/i.test(normalized)) {
+  if (/\d/.test(normalized) || looksLikeVehicleSpecLocation(normalized)) {
     return null;
   }
   const alias = COUNTRY_ALIASES.get(normalized.toLowerCase());
@@ -120,7 +126,7 @@ function normalizeCityName(value) {
   if (!normalized || normalized.length > 42) {
     return null;
   }
-  if (/\d/.test(normalized) || /€|eur|kw|km|benzinas|dyzelinas|automatin|sedan|visureig|krosover/i.test(normalized)) {
+  if (/\d/.test(normalized) || looksLikeVehicleSpecLocation(normalized)) {
     return null;
   }
   if (!/^[\p{L}\-.' ]{2,42}$/u.test(normalized)) {
