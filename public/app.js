@@ -472,11 +472,39 @@ function extractYearFromText(value) {
   return match ? Number.parseInt(match[0], 10) : null;
 }
 
+/**
+ * Strips list-card status / time prefixes Autoplius sometimes prepends to the main title
+ * (e.g. "Rezervuota", "Prieš 46 min.", "Atnaujintas") so the model column only shows the vehicle line.
+ */
+function stripAutopliusListingStatusPrefix(text) {
+  const raw = (text || "").replace(/\s+/g, " ").trim();
+  if (!raw) {
+    return "";
+  }
+  let t = raw;
+  const patterns = [
+    /^(?:rezervuot[aei]|rezervuota|reserved)\b\.?\s*/i,
+    /^(?:atnaujint[as]?\b|Updated)\.?\s*/i,
+    /^(?:parduot[as]|sold)\.?\s*/i,
+    /^Prie[šs]\s+\d+\s*(min|val|d)\.?(?:\s+)?/i,
+    /^\d+\s+(min|val|d)\.?(?:\s+)?(prie[šs])?\b\.?\s*/i,
+  ];
+  let prev;
+  do {
+    prev = t;
+    for (const re of patterns) {
+      t = t.replace(re, "");
+    }
+    t = t.replace(/^\W+/, "").trim();
+  } while (t && t !== prev);
+  return t;
+}
+
 function inferModel(listing) {
   if (listing.model) {
-    return listing.model;
+    return stripAutopliusListingStatusPrefix(listing.model) || listing.model;
   }
-  const title = (listing.title || "").replace(/\s+/g, " ").trim();
+  const title = stripAutopliusListingStatusPrefix((listing.title || "").replace(/\s+/g, " ").trim());
   if (!title) {
     return "Unknown model";
   }
