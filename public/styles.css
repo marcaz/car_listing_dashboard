@@ -308,6 +308,19 @@ input {
   gap: 0.8rem;
 }
 
+.monitor-settings-tools {
+  margin: 0 0 0.75rem;
+}
+
+.monitor-settings-toggle {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.monitor-settings-panel[hidden] {
+  display: none !important;
+}
+
 dt {
   color: var(--muted);
   font-size: 0.8rem;
@@ -766,6 +779,10 @@ dd {
 
   .status-grid {
     gap: 0.55rem;
+  }
+
+  .monitor-settings-toggle {
+    margin-bottom: 0.62rem;
   }
 
   .polling-indicator {

@@ -151,41 +151,55 @@
             </div>
           </dl>
 
-          <form id="active-monitor-form">
-            <label>
-              Monitor name
-              <input id="active-monitor-name" type="text" required />
-            </label>
-            <label>
-              Search URL
-              <input id="active-monitor-url" type="url" required />
-            </label>
-            <div class="row">
-              <label>
-                Poll interval (seconds, min 15)
-                <input id="active-poll-interval" type="number" min="15" />
-              </label>
-              <label>
-                NEW badge window (minutes)
-                <input id="active-new-badge" type="number" min="1" />
-              </label>
-            </div>
+          <div class="monitor-settings-tools">
+            <button
+              id="monitor-settings-toggle-btn"
+              type="button"
+              class="btn secondary small monitor-settings-toggle"
+              aria-expanded="false"
+              aria-controls="monitor-settings-panel"
+            >
+              Show monitor settings
+            </button>
+          </div>
 
-            <div class="row actions">
-              <button id="save-monitor-btn" type="submit" class="btn">
-                <span class="btn-label">Save monitor</span>
-                <span class="btn-spinner" aria-hidden="true"></span>
-              </button>
-              <button id="poll-monitor-btn" type="button" class="btn secondary">
-                <span class="btn-label">Poll now</span>
-                <span class="btn-spinner" aria-hidden="true"></span>
-              </button>
-              <button id="delete-monitor-btn" type="button" class="btn danger">
-                <span class="btn-label">Delete monitor</span>
-                <span class="btn-spinner" aria-hidden="true"></span>
-              </button>
-            </div>
-          </form>
+          <section id="monitor-settings-panel" class="monitor-settings-panel" hidden>
+            <form id="active-monitor-form">
+              <label>
+                Monitor name
+                <input id="active-monitor-name" type="text" required />
+              </label>
+              <label>
+                Search URL
+                <input id="active-monitor-url" type="url" required />
+              </label>
+              <div class="row">
+                <label>
+                  Poll interval (seconds, min 15)
+                  <input id="active-poll-interval" type="number" min="15" />
+                </label>
+                <label>
+                  NEW badge window (minutes)
+                  <input id="active-new-badge" type="number" min="1" />
+                </label>
+              </div>
+
+              <div class="row actions">
+                <button id="save-monitor-btn" type="submit" class="btn">
+                  <span class="btn-label">Save monitor</span>
+                  <span class="btn-spinner" aria-hidden="true"></span>
+                </button>
+                <button id="poll-monitor-btn" type="button" class="btn secondary">
+                  <span class="btn-label">Poll now</span>
+                  <span class="btn-spinner" aria-hidden="true"></span>
+                </button>
+                <button id="delete-monitor-btn" type="button" class="btn danger">
+                  <span class="btn-label">Delete monitor</span>
+                  <span class="btn-spinner" aria-hidden="true"></span>
+                </button>
+              </div>
+            </form>
+          </section>
         </section>
 
         <section class="card listings">

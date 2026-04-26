@@ -20,6 +20,8 @@ const els = {
   addNewBadge: document.getElementById("add-new-badge"),
   activeMonitorTitle: document.getElementById("active-monitor-title"),
   activeMonitorUrlChip: document.getElementById("active-monitor-url-chip"),
+  monitorSettingsToggleBtn: document.getElementById("monitor-settings-toggle-btn"),
+  monitorSettingsPanel: document.getElementById("monitor-settings-panel"),
   activeMonitorForm: document.getElementById("active-monitor-form"),
   activeMonitorName: document.getElementById("active-monitor-name"),
   activeMonitorUrl: document.getElementById("active-monitor-url"),
@@ -61,6 +63,7 @@ const appState = {
   expandedListingMonitorId: null,
   debugLogPaused: false,
   mobilePanelCollapsed: true,
+  monitorSettingsCollapsed: true,
 };
 
 const DEBUG_LOG_LIMIT = 160;
@@ -131,6 +134,19 @@ function applyMobilePanelState() {
       ? "Hide monitor settings"
       : "Show monitor settings";
   }
+}
+
+function applyMonitorSettingsPanelState() {
+  const panel = els.monitorSettingsPanel;
+  const toggle = els.monitorSettingsToggleBtn;
+  if (!panel || !toggle) {
+    return;
+  }
+  const collapsed = appState.monitorSettingsCollapsed;
+  panel.hidden = collapsed;
+  panel.setAttribute("aria-hidden", String(collapsed));
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.textContent = collapsed ? "Show monitor settings" : "Hide monitor settings";
 }
 
 function setButtonLoading(button, isLoading, loadingLabel) {
@@ -791,6 +807,8 @@ function renderActiveMonitor(payload) {
     els.statusLastPoll.textContent = "-";
     els.statusSource.textContent = "-";
     els.statusMessage.textContent = "-";
+    appState.monitorSettingsCollapsed = true;
+    applyMonitorSettingsPanelState();
     els.listingsCount.textContent = "0";
     els.segmentSummary.textContent = "No monitor selected.";
     els.listingFeed.innerHTML = '<div class="empty-state">Select or create a monitor to view listings.</div>';
@@ -819,6 +837,7 @@ function renderActiveMonitor(payload) {
   els.pollingText.textContent = pollingNow
     ? `Polling ${activeMonitor.name}...`
     : "Idle - waiting for next poll";
+  applyMonitorSettingsPanelState();
 
   const allListings = activeMonitor.listings || [];
   if (appState.expandedListingMonitorId !== activeMonitor.id) {
@@ -1181,6 +1200,13 @@ if (els.monitorPanelToggleBtn) {
   });
 }
 
+if (els.monitorSettingsToggleBtn) {
+  els.monitorSettingsToggleBtn.addEventListener("click", () => {
+    appState.monitorSettingsCollapsed = !appState.monitorSettingsCollapsed;
+    applyMonitorSettingsPanelState();
+  });
+}
+
 if (els.debugLogClearBtn) {
   els.debugLogClearBtn.addEventListener("click", () => {
     if (els.debugLogFeed) {
@@ -1252,4 +1278,5 @@ if (typeof window !== "undefined") {
 }
 pushDebugLog("info", "Initial UI ready.");
 applyMobilePanelState();
+applyMonitorSettingsPanelState();
 connectSse();
