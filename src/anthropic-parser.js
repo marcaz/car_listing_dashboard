@@ -1,4 +1,5 @@
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+const { cleanVehicleDisplayName } = require("./listing-normalizer");
 const DEFAULT_MODEL = "claude-3-5-haiku-latest";
 const DEFAULT_REASONING_STRENGTH = "balanced";
 const CHANGE_TYPES = new Set([
@@ -68,7 +69,7 @@ function toTitleCase(value) {
 }
 
 function normalizeModelDeterministic(model, title) {
-  const source = sanitizeString(model) || sanitizeString(title);
+  const source = cleanVehicleDisplayName(sanitizeString(model)) || cleanVehicleDisplayName(sanitizeString(title));
   if (!source) {
     return null;
   }
@@ -76,7 +77,7 @@ function normalizeModelDeterministic(model, title) {
   if (/BMW/.test(upper) && /\bX3\b/.test(upper) && /\bM\b/.test(upper)) {
     return "BMW X3 M";
   }
-  return source
+  return cleanVehicleDisplayName(source)
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b([a-z])/g, (match) => match.toUpperCase());

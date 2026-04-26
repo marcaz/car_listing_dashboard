@@ -483,11 +483,9 @@ function stripAutopliusListingStatusPrefix(text) {
   }
   let t = raw;
   const patterns = [
-    /^(?:rezervuot[aei]|rezervuota|reserved)\b\.?\s*/i,
-    /^(?:atnaujint[as]?\b|Updated)\.?\s*/i,
-    /^(?:parduot[as]|sold)\.?\s*/i,
-    /^Prie[šs]\s+\d+\s*(min|val|d)\.?(?:\s+)?/i,
-    /^\d+\s+(min|val|d)\.?(?:\s+)?(prie[šs])?\b\.?\s*/i,
+    /^(?:atnaujint(?:as|a|i|os)?|rezervuot(?:as|a|i|os)?|parduot(?:as|a|i|os)?|reserved|sold|updated)\b[\s:.,-]*/iu,
+    /^prie[šs]\s+\d+\s*(?:min\.?|val\.?|d\.?|dien(?:a|os)?|h|hour|hours)\b[\s:.,-]*/iu,
+    /^\d+\s*(?:min\.?|val\.?|d\.?|dien(?:a|os)?|h|hour|hours)\s*(?:prie[šs])?[\s:.,-]*/iu,
   ];
   let prev;
   do {
@@ -495,7 +493,7 @@ function stripAutopliusListingStatusPrefix(text) {
     for (const re of patterns) {
       t = t.replace(re, "");
     }
-    t = t.replace(/^\W+/, "").trim();
+    t = t.replace(/^[\s\-–—|:.,]+/u, "").trim();
   } while (t && t !== prev);
   return t;
 }

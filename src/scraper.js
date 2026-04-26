@@ -1,5 +1,6 @@
 const cheerio = require("cheerio");
 const { chromium } = require("playwright");
+const { cleanVehicleDisplayName } = require("./listing-normalizer");
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -209,7 +210,7 @@ function extractYearFromText(value) {
 }
 
 function extractModelFromTitle(title) {
-  const normalized = normalizeWhitespace(title).replace(/^\d+\s+/, "");
+  const normalized = cleanVehicleDisplayName(normalizeWhitespace(title).replace(/^\d+\s+/, ""));
   if (!normalized) {
     return null;
   }
