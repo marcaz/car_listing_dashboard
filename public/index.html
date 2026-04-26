@@ -25,14 +25,6 @@
           <span id="topbar-poll-state">Idle</span>
         </span>
         <span class="topbar-chip"><span id="topbar-listing-count">0</span> listings</span>
-        <label class="topbar-theme-wrap" for="dashboard-theme">
-          <span class="topbar-theme-label">Theme</span>
-          <select id="dashboard-theme" class="topbar-theme-select">
-            <option value="ghost">Ghost</option>
-            <option value="ember">Ember</option>
-            <option value="pulse">Pulse</option>
-          </select>
-        </label>
         <button
           id="global-settings-toggle-btn"
           type="button"
@@ -234,6 +226,18 @@
         </div>
       </div>
       <p class="muted monitors-hint">Adjust parser-related settings for all monitors.</p>
+
+      <section class="sub-card">
+        <h2>Appearance</h2>
+        <label class="settings-select-wrap" for="dashboard-theme">
+          <span class="settings-select-label">Theme</span>
+          <select id="dashboard-theme" class="settings-select">
+            <option value="ghost">Ghost</option>
+            <option value="ember">Ember</option>
+            <option value="pulse">Pulse</option>
+          </select>
+        </label>
+      </section>
 
       <section class="sub-card">
         <h2>Parser mode</h2>
