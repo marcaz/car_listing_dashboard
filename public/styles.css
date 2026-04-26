@@ -1776,9 +1776,22 @@ body.drawer-open {
   transition: color 160ms ease, background-color 160ms ease;
 }
 
+.monitor-tab::before,
 .monitor-tab::after {
   content: "";
   position: absolute;
+}
+
+.monitor-tab::before {
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--card-border) 58%, #9fb0d4 42%);
+  pointer-events: none;
+}
+
+.monitor-tab::after {
   right: 0.55rem;
   bottom: 0;
   left: 0.55rem;
@@ -1790,6 +1803,10 @@ body.drawer-open {
   transition: transform 180ms ease;
 }
 
+.monitor-tab + .monitor-tab::before {
+  background: color-mix(in srgb, var(--card-border) 44%, #b8c6e6 56%);
+}
+
 .monitor-tab:hover {
   border-color: transparent;
   transform: none;
@@ -1797,10 +1814,18 @@ body.drawer-open {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
+.monitor-tab:hover::before {
+  background: color-mix(in srgb, var(--accent) 44%, #d8e4ff 56%);
+}
+
 .monitor-tab.active {
   border-color: transparent;
   background: transparent;
   color: var(--text);
+}
+
+.monitor-tab.active::before {
+  background: color-mix(in srgb, var(--accent) 62%, #e2e8f0 38%);
 }
 
 .monitor-tab.active::after {
