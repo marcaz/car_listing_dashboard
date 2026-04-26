@@ -305,7 +305,16 @@ input {
 .status-grid {
   margin: 0 0 0.85rem;
   display: grid;
-  gap: 0.8rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.status-item {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--card-border) 82%, transparent);
+  border-radius: 8px;
+  padding: 0.36rem 0.48rem;
+  background: color-mix(in srgb, #0f172a 58%, #000);
 }
 
 .active-monitor-collapsed-summary {
@@ -379,11 +388,17 @@ input {
 
 dt {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.67rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0;
 }
 
 dd {
-  margin: 0.1rem 0 0;
+  margin: 0.2rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .polling-indicator {
@@ -834,7 +849,12 @@ dd {
   }
 
   .status-grid {
-    gap: 0.55rem;
+    grid-template-columns: 1fr;
+    gap: 0.34rem;
+  }
+
+  .status-item {
+    padding: 0.3rem 0.4rem;
   }
 
   .active-monitor-collapsed-summary {

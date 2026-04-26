@@ -19,7 +19,6 @@ const els = {
   addPollInterval: document.getElementById("add-poll-interval"),
   addNewBadge: document.getElementById("add-new-badge"),
   activeMonitorTitle: document.getElementById("active-monitor-title"),
-  activeMonitorUrlChip: document.getElementById("active-monitor-url-chip"),
   activeMonitorCollapsedSummary: document.getElementById("active-monitor-collapsed-summary"),
   activeMonitorSummaryTotal: document.getElementById("active-monitor-total-results"),
   activeMonitorSummaryNew: document.getElementById("active-monitor-new-results"),
@@ -156,6 +155,39 @@ function applyMonitorSettingsPanelState() {
     collapsedSummary.hidden = !collapsed;
     collapsedSummary.setAttribute("aria-hidden", String(!collapsed));
   }
+}
+
+function formatCompactModeLabel(mode) {
+  const text = String(mode || "").trim();
+  if (!text || text === "-" || text === "n/a") {
+    return "N/A";
+  }
+  const normalized = text.toLowerCase();
+  if (normalized.includes("claude") || normalized.includes("ai")) {
+    return "AI";
+  }
+  if (normalized.includes("deterministic")) {
+    return "Deterministic";
+  }
+  return text;
+}
+
+function formatCompactResultLabel(status, message) {
+  const normalizedStatus = String(status || "").toLowerCase();
+  if (normalizedStatus === "success" || normalizedStatus === "ok") {
+    return "OK";
+  }
+  if (normalizedStatus === "error" || normalizedStatus === "failed") {
+    return "Error";
+  }
+  const rawMessage = String(message || "").trim();
+  if (!rawMessage || rawMessage === "-") {
+    return "Idle";
+  }
+  if (rawMessage.length <= 40) {
+    return rawMessage;
+  }
+  return `${rawMessage.slice(0, 39)}…`;
 }
 
 function setButtonLoading(button, isLoading, loadingLabel) {
@@ -808,7 +840,6 @@ function renderActiveMonitor(payload) {
     appState.expandedListingIds.clear();
     appState.expandedListingMonitorId = null;
     els.activeMonitorTitle.textContent = "No active monitor";
-    els.activeMonitorUrlChip.textContent = "-";
     els.activeMonitorName.value = "";
     els.activeMonitorUrl.value = "";
     els.activePollInterval.value = 60;
@@ -837,7 +868,6 @@ function renderActiveMonitor(payload) {
   }
 
   els.activeMonitorTitle.textContent = activeMonitor.name;
-  els.activeMonitorUrlChip.textContent = activeMonitor.searchUrl;
   els.activeMonitorName.value = activeMonitor.name || "";
   els.activeMonitorUrl.value = activeMonitor.searchUrl || "";
   els.activePollInterval.value = Math.round((activeMonitor.pollIntervalMs || 0) / 1000);
@@ -845,9 +875,9 @@ function renderActiveMonitor(payload) {
 
   const pollStatus = activeMonitor.lastPoll || {};
   const pollLabel = `${formatDateTime(pollStatus.at)} (${pollStatus.status || "unknown"})`;
-  els.statusLastPoll.textContent = pollLabel;
-  els.statusSource.textContent = pollStatus.source || "n/a";
-  els.statusMessage.textContent = pollStatus.message || "-";
+  els.statusLastPoll.textContent = pollStatus.at ? formatDateTime(pollStatus.at) : "-";
+  els.statusSource.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
+  els.statusMessage.textContent = formatCompactResultLabel(pollStatus.status, pollStatus.message);
 
   const allListings = activeMonitor.listings || [];
   const updatedCount = allListings.reduce(
