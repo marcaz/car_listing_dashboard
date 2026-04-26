@@ -523,10 +523,12 @@ input {
   padding: 0.02rem 0.3rem 0.02rem 0.24rem;
 }
 
-.monitor-claude-indicator.status-item-mode-off .mode-status-token {
-  color: color-mix(in srgb, var(--text) 92%, #ffedd5 8%);
-  background: color-mix(in srgb, #7c2d12 22%, #0b1220);
-  border-color: color-mix(in srgb, #f97316 40%, var(--card-border));
+.monitor-claude-indicator.status-item-mode-off .mode-status-token,
+.monitor-claude-indicator .mode-status-token.mode-status-token-off {
+  color: #fff7ed;
+  background: color-mix(in srgb, #c2410c 58%, #0b1220 42%);
+  border: 1px solid color-mix(in srgb, #fb923c 72%, #7c2d12 28%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #f97316 18%, transparent);
 }
 
 .monitor-claude-indicator.status-item-mode-unavailable .mode-status-token {
