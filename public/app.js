@@ -42,8 +42,11 @@ const els = {
   pollingIndicator: document.getElementById("polling-indicator"),
   pollingText: document.getElementById("polling-text"),
   statusLastPoll: document.getElementById("status-last-poll"),
-  statusSource: document.getElementById("status-source"),
   statusMessage: document.getElementById("status-message"),
+  claudeStateInline: document.getElementById("monitor-claude-indicator"),
+  activeMonitorStatusGrid: document.getElementById("active-monitor-status-grid"),
+  statusItemLastPoll: document.getElementById("status-item-last-poll"),
+  statusItemResult: document.getElementById("status-item-result"),
   listingSegments: document.getElementById("listing-segments"),
   listingSortBy: document.getElementById("listing-sort"),
   listingsStatsStrip: document.getElementById("listings-stats-strip"),
@@ -72,7 +75,7 @@ const actionState = {
 const appState = {
   dashboard: null,
   activeSegment: "all",
-  sortBy: "newest",
+  sortBy: "price_asc",
   expandedListingIds: new Set(),
   expandedListingMonitorId: null,
   debugLogPaused: false,
@@ -212,26 +215,89 @@ function applyMonitorSettingsPanelState() {
   panel.hidden = collapsed;
   panel.setAttribute("aria-hidden", String(collapsed));
   toggle.setAttribute("aria-expanded", String(!collapsed));
-  toggle.textContent = collapsed ? "Show monitor settings" : "Hide monitor settings";
+  const label = toggle.querySelector(".monitor-settings-toggle-label");
+  const labelText = collapsed ? "Show monitor settings" : "Hide monitor settings";
+  toggle.setAttribute("title", labelText);
+  if (label) {
+    label.textContent = labelText;
+  }
+  toggle.classList.toggle("monitor-settings-open", !collapsed);
   if (collapsedSummary) {
     collapsedSummary.hidden = !collapsed;
     collapsedSummary.setAttribute("aria-hidden", String(!collapsed));
   }
+  applyActiveMonitorPollStatusDisplay();
 }
 
-function formatCompactModeLabel(mode) {
-  const text = String(mode || "").trim();
-  if (!text || text === "-" || text === "n/a") {
-    return "N/A";
+function formatCollapsedClaudeModeLabel(settings) {
+  const s = settings || {};
+  if (!s.claudeAvailable) {
+    return { text: "Claude unavailable", tone: "unavailable" };
   }
-  const normalized = text.toLowerCase();
-  if (normalized.includes("claude") || normalized.includes("ai")) {
-    return "AI";
+  return s.claudeParsingEnabled
+    ? { text: "Claude API on", tone: "on" }
+    : { text: "Claude API off", tone: "off" };
+}
+
+function applyActiveMonitorPollStatusDisplay() {
+  const grid = els.activeMonitorStatusGrid;
+  const lastPollItem = els.statusItemLastPoll;
+  const resultItem = els.statusItemResult;
+  const claudeStateInline = els.claudeStateInline;
+  const collapsed = appState.monitorSettingsCollapsed;
+  const settings = appState.dashboard?.settings;
+
+  for (const el of [lastPollItem, resultItem]) {
+    if (el) {
+      el.hidden = collapsed;
+      el.setAttribute("aria-hidden", String(collapsed));
+    }
   }
-  if (normalized.includes("deterministic")) {
-    return "Deterministic";
+
+  if (!claudeStateInline) {
+    return;
   }
-  return text;
+
+  claudeStateInline.classList.remove(
+    "monitor-status-chip--claude-on",
+    "monitor-status-chip--claude-off",
+    "monitor-status-chip--claude-unavailable"
+  );
+  claudeStateInline.innerHTML = "";
+  const collapsedMode = formatCollapsedClaudeModeLabel(settings);
+  if (collapsedMode.tone === "on") {
+    claudeStateInline.classList.add("monitor-status-chip--claude-on");
+  } else if (collapsedMode.tone === "off") {
+    claudeStateInline.classList.add("monitor-status-chip--claude-off");
+  } else {
+    claudeStateInline.classList.add("monitor-status-chip--claude-unavailable");
+  }
+  renderCollapsedModeToken(claudeStateInline, collapsedMode);
+}
+
+function renderCollapsedModeToken(target, modeState) {
+  if (!target) {
+    return;
+  }
+  const tone = modeState?.tone || "unavailable";
+  const text = modeState?.text || "Claude unavailable";
+  const token = document.createElement("span");
+  token.className = "monitor-status-chip__inner";
+  const dot = document.createElement("span");
+  dot.className = "status-chip-dot";
+  dot.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.className = "status-chip-text";
+  label.textContent = text;
+  if (tone === "on") {
+    dot.classList.add("status-chip-dot--on");
+  } else if (tone === "off") {
+    dot.classList.add("status-chip-dot--off");
+  } else {
+    dot.classList.add("status-chip-dot--neutral");
+  }
+  token.append(dot, label);
+  target.appendChild(token);
 }
 
 function formatCompactResultLabel(status, message) {
@@ -366,12 +432,14 @@ function renderClaudeControls(payload) {
   if (!available) {
     els.claudeStatusText.textContent =
       "Claude fallback currently unavailable. Set API key below and save settings.";
+    applyActiveMonitorPollStatusDisplay();
     return;
   }
 
   els.claudeStatusText.textContent = enabled
     ? `Claude fallback enabled (${settings.claudeApiKeySource || "unknown"} key source).`
     : "Deterministic parser only.";
+  applyActiveMonitorPollStatusDisplay();
 }
 
 function formatDateTime(iso) {
@@ -386,15 +454,10 @@ function formatDateTime(iso) {
 }
 
 function isRecentlyUpdated(listing) {
-  if (!listing || !listing.lastChangedAt || !listing.firstSeenAt) {
+  if (!listing || !listing.changedInLastPoll) {
     return false;
   }
-  const changedMs = Date.parse(listing.lastChangedAt);
-  const firstSeenMs = Date.parse(listing.firstSeenAt);
-  if (!Number.isFinite(changedMs) || !Number.isFinite(firstSeenMs)) {
-    return false;
-  }
-  return changedMs > firstSeenMs;
+  return true;
 }
 
 function extractPriceFromText(value) {
@@ -409,11 +472,37 @@ function extractYearFromText(value) {
   return match ? Number.parseInt(match[0], 10) : null;
 }
 
+/**
+ * Strips list-card status / time prefixes Autoplius sometimes prepends to the main title
+ * (e.g. "Rezervuota", "Prieš 46 min.", "Atnaujintas") so the model column only shows the vehicle line.
+ */
+function stripAutopliusListingStatusPrefix(text) {
+  const raw = (text || "").replace(/\s+/g, " ").trim();
+  if (!raw) {
+    return "";
+  }
+  let t = raw;
+  const patterns = [
+    /^(?:atnaujint(?:as|a|i|os)?|rezervuot(?:as|a|i|os)?|parduot(?:as|a|i|os)?|reserved|sold|updated)\b[\s:.,-]*/iu,
+    /^prie[šs]\s+\d+\s*(?:min\.?|val\.?|d\.?|dien(?:a|os)?|h|hour|hours)\b[\s:.,-]*/iu,
+    /^\d+\s*(?:min\.?|val\.?|d\.?|dien(?:a|os)?|h|hour|hours)\s*(?:prie[šs])?[\s:.,-]*/iu,
+  ];
+  let prev;
+  do {
+    prev = t;
+    for (const re of patterns) {
+      t = t.replace(re, "");
+    }
+    t = t.replace(/^[\s\-–—|:.,]+/u, "").trim();
+  } while (t && t !== prev);
+  return t;
+}
+
 function inferModel(listing) {
   if (listing.model) {
-    return listing.model;
+    return stripAutopliusListingStatusPrefix(listing.model) || listing.model;
   }
-  const title = (listing.title || "").replace(/\s+/g, " ").trim();
+  const title = stripAutopliusListingStatusPrefix((listing.title || "").replace(/\s+/g, " ").trim());
   if (!title) {
     return "Unknown model";
   }
@@ -445,28 +534,133 @@ function inferPrice(listing) {
   return extractPriceFromText(listing.updatedText || "");
 }
 
+const KNOWN_LOCATION_CITY_NAMES = new Map(
+  [
+    "Akmenė",
+    "Alytus",
+    "Anykščiai",
+    "Birštonas",
+    "Biržai",
+    "Druskininkai",
+    "Elektrėnai",
+    "Gargždai",
+    "Ignalina",
+    "Jonava",
+    "Joniškis",
+    "Jurbarkas",
+    "Kaišiadorys",
+    "Kaunas",
+    "Kėdainiai",
+    "Klaipėda",
+    "Marijampolė",
+    "Mažeikiai",
+    "Palanga",
+    "Panevėžys",
+    "Šiauliai",
+    "Tauragė",
+    "Telšiai",
+    "Ukmergė",
+    "Utena",
+    "Vilnius",
+  ].map((city) => [city.toLowerCase(), city])
+);
+
+const KNOWN_LOCATION_COUNTRY_NAMES = new Set(["lietuva", "lithuania", "latvija", "latvia", "estija", "estonia"]);
+const LOCATION_CITY_ALIASES = new Map([["vilniaus", "Vilnius"]]);
+
+function isVehicleSpecLocationNoise(value) {
+  return /\b(?:krosoveris|crossover|visureigis|sedanas|universalas|he[cč]bekas|kup[ėe]|benzinas|dyzelinas|elektra|hibrid|automatin|mechanin|kw|km)\b/i.test(
+    String(value || "")
+  );
+}
+
+function normalizeCountryDisplayName(value) {
+  const normalized = String(value || "").replace(/\s+/g, " ").trim();
+  if (!normalized || normalized.length > 32) {
+    return null;
+  }
+  if (/\d/.test(normalized) || isVehicleSpecLocationNoise(normalized)) {
+    return null;
+  }
+  const aliases = new Map([
+    ["lt", "Lithuania"],
+    ["lietuva", "Lithuania"],
+    ["lithuania", "Lithuania"],
+    ["lv", "Latvia"],
+    ["latvija", "Latvia"],
+    ["latvia", "Latvia"],
+    ["ee", "Estonia"],
+    ["estija", "Estonia"],
+    ["estonia", "Estonia"],
+  ]);
+  const lower = normalized.toLowerCase();
+  return aliases.get(lower) || (KNOWN_LOCATION_COUNTRY_NAMES.has(lower) ? normalized : null);
+}
+
+function normalizeCityDisplayName(value) {
+  const normalized = String(value || "")
+    .replace(/^(?:miestas|city|location|vieta)\s*[:\-]?\s*/i, "")
+    .replace(/\b(?:m\.|miestas)\s*$/gi, "")
+    .replace(/iaus\s*$/i, "ius")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized || normalized.length > 42) {
+    return null;
+  }
+  if (/\d/.test(normalized) || /€|eur/i.test(normalized) || isVehicleSpecLocationNoise(normalized)) {
+    return null;
+  }
+  if (!/^[\p{L}\-.' ]{2,42}$/u.test(normalized)) {
+    return null;
+  }
+  const known = KNOWN_LOCATION_CITY_NAMES.get(normalized.toLowerCase());
+  if (known) {
+    return known;
+  }
+  const alias = LOCATION_CITY_ALIASES.get(normalized.toLowerCase());
+  if (alias) {
+    return alias;
+  }
+  return normalizeCountryDisplayName(normalized) ? null : normalized;
+}
+
+function inferLocationFromListingText(listing) {
+  const text = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ").trim();
+  if (!text) {
+    return { city: null, country: null };
+  }
+  const labeledCity = text.match(/(?:miestas|city|location|vieta)\s*[:\-]?\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,42})/iu);
+  if (labeledCity) {
+    return { city: normalizeCityDisplayName(labeledCity[1]), country: null };
+  }
+  const locationMatch = text.match(/([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,42})\s*[,|/]\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})\s*$/u);
+  if (locationMatch) {
+    return {
+      city: normalizeCityDisplayName(locationMatch[1]),
+      country: normalizeCountryDisplayName(locationMatch[2]),
+    };
+  }
+  for (const [lowerCity, displayCity] of KNOWN_LOCATION_CITY_NAMES) {
+    const escaped = lowerCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(?:^|[^\\p{L}])${escaped}(?:$|[^\\p{L}])`, "iu").test(text)) {
+      return { city: displayCity, country: null };
+    }
+  }
+  return { city: null, country: null };
+}
+
 function inferCity(listing) {
   if (listing.city) {
     return listing.city;
   }
-  const title = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ");
-  const locationMatch = title.match(/,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})(?:,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32}))?\s*$/u);
-  if (!locationMatch) {
-    return null;
-  }
-  return locationMatch[1]?.trim() || null;
+  return inferLocationFromListingText(listing).city;
 }
 
 function inferCountry(listing) {
   if (listing.country) {
     return listing.country;
   }
-  const title = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ");
-  const locationMatch = title.match(/,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})(?:,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32}))?\s*$/u);
-  if (!locationMatch) {
-    return null;
-  }
-  return locationMatch[2]?.trim() || null;
+  return inferLocationFromListingText(listing).country;
 }
 
 function sanitizeLocationDisplayValue(value) {
@@ -474,6 +668,9 @@ function sanitizeLocationDisplayValue(value) {
     .replace(/\s+/g, " ")
     .trim();
   if (!normalized) {
+    return null;
+  }
+  if (isVehicleSpecLocationNoise(normalized)) {
     return null;
   }
   if (normalized.length > 42) {
@@ -879,7 +1076,8 @@ function listingCard(listing) {
   if (updated) {
     const badge = document.createElement("span");
     badge.className = "badge updated";
-    badge.textContent = "UPDATED";
+    const sourceChangedAt = formatDateTime(listing.lastSourceChangeAt || listing.lastChangedAt);
+    badge.textContent = `UPDATED ${sourceChangedAt}`;
     badges.appendChild(badge);
   }
   if (listing.isStale) {
@@ -944,8 +1142,8 @@ function renderActiveMonitor(payload) {
     els.activePollInterval.value = 60;
     els.activeNewBadge.value = 120;
     els.statusLastPoll.textContent = "-";
-    els.statusSource.textContent = "-";
     els.statusMessage.textContent = "-";
+    applyActiveMonitorPollStatusDisplay();
     if (els.topbarListingCount) {
       els.topbarListingCount.textContent = "0";
     }
@@ -989,8 +1187,8 @@ function renderActiveMonitor(payload) {
 
   const pollStatus = activeMonitor.lastPoll || {};
   els.statusLastPoll.textContent = pollStatus.at ? formatDateTime(pollStatus.at) : "-";
-  els.statusSource.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
   els.statusMessage.textContent = formatCompactResultLabel(pollStatus.status, pollStatus.message);
+  applyActiveMonitorPollStatusDisplay();
 
   const allListings = activeMonitor.listings || [];
   if (els.topbarListingCount) {
@@ -1014,8 +1212,8 @@ function renderActiveMonitor(payload) {
     Boolean(activeMonitor.pollingInProgress) ||
     actionState.pollingMonitor ||
     actionState.savingMonitor;
-  els.pollingIndicator.classList.toggle("polling", pollingNow);
-  els.pollingIndicator.classList.toggle("idle", !pollingNow);
+  els.pollingIndicator.classList.toggle("monitor-status-chip--poll-polling", pollingNow);
+  els.pollingIndicator.classList.toggle("monitor-status-chip--poll-idle", !pollingNow);
   els.pollingText.textContent = pollingNow
     ? `Polling ${activeMonitor.name}...`
     : "Idle - waiting for next poll";

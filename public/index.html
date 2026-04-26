@@ -25,14 +25,6 @@
           <span id="topbar-poll-state">Idle</span>
         </span>
         <span class="topbar-chip"><span id="topbar-listing-count">0</span> listings</span>
-        <label class="topbar-theme-wrap" for="dashboard-theme">
-          <span class="topbar-theme-label">Theme</span>
-          <select id="dashboard-theme" class="topbar-theme-select">
-            <option value="ghost">Ghost</option>
-            <option value="ember">Ember</option>
-            <option value="pulse">Pulse</option>
-          </select>
-        </label>
         <button
           id="global-settings-toggle-btn"
           type="button"
@@ -56,6 +48,46 @@
         <section class="card monitor-detail">
           <div class="panel-head">
             <h2 id="active-monitor-title">Active monitor</h2>
+            <div class="panel-head-actions">
+              <button
+                id="monitor-settings-toggle-btn"
+                type="button"
+                class="icon-btn monitor-settings-toggle-btn"
+                aria-expanded="false"
+                aria-controls="monitor-settings-panel"
+                title="Show monitor settings"
+              >
+                <svg
+                  class="monitor-settings-toggle-chevron"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path
+                    d="M12 15.88 19.94 7.94 18.18 6.18 12 12.36 5.82 6.18 4.06 7.94 12 15.88Z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span class="sr-only monitor-settings-toggle-label">Show monitor settings</span>
+              </button>
+            </div>
+          </div>
+          <div class="monitor-status-inline-row" aria-label="Monitor status">
+            <div
+              id="polling-indicator"
+              class="monitor-status-chip monitor-status-chip--poll monitor-status-chip--poll-idle"
+              role="status"
+              aria-live="polite"
+            >
+              <span class="status-chip-dot" aria-hidden="true"></span>
+              <span id="polling-text" class="status-chip-text">Idle</span>
+            </div>
+            <span
+              id="monitor-claude-indicator"
+              class="monitor-status-chip monitor-claude-indicator"
+              role="status"
+              aria-live="polite"
+            ></span>
           </div>
           <div id="active-monitor-collapsed-summary" class="active-monitor-collapsed-summary" hidden>
             <span class="monitor-stat">
@@ -75,42 +107,16 @@
             </span>
           </div>
 
-          <div
-            id="polling-indicator"
-            class="polling-indicator idle"
-            role="status"
-            aria-live="polite"
-          >
-            <span class="poll-dot" aria-hidden="true"></span>
-            <span id="polling-text">Idle</span>
-          </div>
-
-          <dl class="status-grid">
-            <div class="status-item">
+          <dl id="active-monitor-status-grid" class="status-grid">
+            <div id="status-item-last-poll" class="status-item">
               <dt class="status-label">Last poll</dt>
               <dd id="status-last-poll" class="status-value">-</dd>
             </div>
-            <div class="status-item">
+            <div id="status-item-result" class="status-item">
               <dt class="status-label">Result</dt>
               <dd id="status-message" class="status-value">-</dd>
             </div>
-            <div class="status-item">
-              <dt class="status-label">Mode</dt>
-              <dd id="status-source" class="status-value">-</dd>
-            </div>
           </dl>
-
-          <div class="monitor-settings-tools">
-            <button
-              id="monitor-settings-toggle-btn"
-              type="button"
-              class="btn secondary small monitor-settings-toggle"
-              aria-expanded="false"
-              aria-controls="monitor-settings-panel"
-            >
-              Show monitor settings
-            </button>
-          </div>
 
           <section id="monitor-settings-panel" class="monitor-settings-panel" hidden>
             <form id="active-monitor-form">
@@ -172,7 +178,7 @@
               <select id="listing-sort" class="sort-select">
                 <option value="newest">Newest first</option>
                 <option value="recently_changed">Recently changed</option>
-                <option value="price_asc">Price: low to high</option>
+                <option value="price_asc" selected>Price: low to high</option>
                 <option value="price_desc">Price: high to low</option>
                 <option value="year_desc">Year: newest first</option>
                 <option value="year_asc">Year: oldest first</option>
@@ -221,6 +227,18 @@
         </div>
       </div>
       <p class="muted monitors-hint">Adjust parser-related settings for all monitors.</p>
+
+      <section class="sub-card">
+        <h2>Appearance</h2>
+        <label class="settings-select-wrap" for="dashboard-theme">
+          <span class="settings-select-label">Theme</span>
+          <select id="dashboard-theme" class="settings-select">
+            <option value="ghost">Ghost</option>
+            <option value="ember">Ember</option>
+            <option value="pulse">Pulse</option>
+          </select>
+        </label>
+      </section>
 
       <section class="sub-card">
         <h2>Parser mode</h2>

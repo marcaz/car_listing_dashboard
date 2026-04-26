@@ -102,6 +102,21 @@ function normalizeMonitor(monitorId, rawMonitor) {
   if (!merged.listingsById || typeof merged.listingsById !== "object") {
     merged.listingsById = {};
   }
+  for (const [listingId, listing] of Object.entries(merged.listingsById)) {
+    if (!listing || typeof listing !== "object") {
+      delete merged.listingsById[listingId];
+      continue;
+    }
+    if (typeof listing.sourceFingerprint !== "string" || !listing.sourceFingerprint) {
+      listing.sourceFingerprint = "";
+    }
+    if (typeof listing.changedInLastPoll !== "boolean") {
+      listing.changedInLastPoll = false;
+    }
+    if (typeof listing.lastSourceChangeAt !== "string" || !listing.lastSourceChangeAt) {
+      listing.lastSourceChangeAt = listing.lastChangedAt || listing.firstSeenAt || null;
+    }
+  }
 
   if (!Array.isArray(merged.listingOrder)) {
     merged.listingOrder = [];
@@ -256,9 +271,17 @@ class StateStore {
 
     try {
       const raw = await fs.readFile(this.filePath, "utf8");
-      this.state = this.normalizeState(JSON.parse(raw));
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        throw new SyntaxError("State file is empty");
+      }
+      this.state = this.normalizeState(JSON.parse(trimmed));
     } catch (error) {
-      if (error.code !== "ENOENT") {
+      const recoverableParseError =
+        error instanceof SyntaxError ||
+        error.code === "ENOENT" ||
+        error.code === "ERR_INVALID_ARG_TYPE";
+      if (!recoverableParseError) {
         throw error;
       }
 
