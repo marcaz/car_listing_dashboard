@@ -1,14 +1,12 @@
 const els = {
   dashboardThemeSelect: document.getElementById("dashboard-theme"),
-  topbarActiveMonitor: document.getElementById("topbar-active-monitor"),
   topbarPollDot: document.getElementById("topbar-poll-dot"),
   topbarPollState: document.getElementById("topbar-poll-state"),
   topbarListingCount: document.getElementById("topbar-listing-count"),
   monitorTabs: document.getElementById("monitor-tabs"),
-  monitorTabsCount: document.getElementById("monitor-tabs-count"),
-  monitorAddToggleBtn: document.getElementById("monitor-add-toggle-btn"),
+  monitorAddModal: document.getElementById("monitor-add-modal"),
   monitorAddCloseBtn: document.getElementById("monitor-add-close-btn"),
-  monitorAddPanel: document.getElementById("monitor-add-panel"),
+  monitorAddCancelBtn: document.getElementById("monitor-add-cancel-btn"),
   claudeToggleBtn: document.getElementById("claude-toggle-btn"),
   claudeStatusText: document.getElementById("claude-status-text"),
   claudeSettingsForm: document.getElementById("claude-settings-form"),
@@ -56,7 +54,10 @@ const els = {
   debugLogFeed: document.getElementById("debug-log-feed"),
   debugLogClearBtn: document.getElementById("debug-log-clear-btn"),
   debugLogPauseBtn: document.getElementById("debug-log-pause-btn"),
-  monitorPanelToggleBtn: document.getElementById("monitor-panel-toggle-btn"),
+  globalSettingsToggleBtn: document.getElementById("global-settings-toggle-btn"),
+  globalSettingsCloseBtn: document.getElementById("global-settings-close-btn"),
+  globalSettingsPanel: document.getElementById("global-settings-panel"),
+  globalSettingsBackdrop: document.getElementById("global-settings-backdrop"),
 };
 
 const actionState = {
@@ -75,9 +76,9 @@ const appState = {
   expandedListingIds: new Set(),
   expandedListingMonitorId: null,
   debugLogPaused: false,
-  mobilePanelCollapsed: true,
   monitorSettingsCollapsed: true,
-  monitorAddPanelOpen: false,
+  monitorAddModalOpen: false,
+  globalSettingsOpen: false,
   dashboardTheme: "ghost",
 };
 
@@ -148,38 +149,56 @@ function isSmartphoneViewport() {
   return window.matchMedia("(max-width: 760px)").matches;
 }
 
-function applyMobilePanelState() {
-  if (!els.monitorTabs) {
+function focusMonitorAddInput() {
+  if (!els.addMonitorName) {
     return;
   }
-  const mobile = isSmartphoneViewport();
-  if (!mobile) {
-    document.body.classList.remove("mobile-panel-collapsed");
-    if (els.monitorPanelToggleBtn) {
-      els.monitorPanelToggleBtn.setAttribute("aria-expanded", "true");
-      els.monitorPanelToggleBtn.textContent = "Hide settings";
-    }
+  setTimeout(() => {
+    els.addMonitorName.focus();
+  }, 0);
+}
+
+function applyOverlayBodyState() {
+  if (typeof document === "undefined") {
     return;
   }
-  document.body.classList.toggle("mobile-panel-collapsed", appState.mobilePanelCollapsed);
-  if (els.monitorPanelToggleBtn) {
-    const expanded = !appState.mobilePanelCollapsed;
-    els.monitorPanelToggleBtn.setAttribute("aria-expanded", String(expanded));
-    els.monitorPanelToggleBtn.textContent = expanded
-      ? "Hide monitor settings"
-      : "Show monitor settings";
+  document.body.classList.toggle(
+    "overlay-open",
+    Boolean(appState.monitorAddModalOpen || appState.globalSettingsOpen)
+  );
+}
+
+function applyMonitorAddModalState() {
+  if (!els.monitorAddModal) {
+    return;
+  }
+  const open = Boolean(appState.monitorAddModalOpen);
+  els.monitorAddModal.hidden = !open;
+  els.monitorAddModal.setAttribute("aria-hidden", String(!open));
+  applyOverlayBodyState();
+  if (open) {
+    focusMonitorAddInput();
   }
 }
 
-function applyMonitorAddPanelState() {
-  if (!els.monitorAddPanel || !els.monitorAddToggleBtn) {
-    return;
+function applyGlobalSettingsPanelState() {
+  const panel = els.globalSettingsPanel;
+  const backdrop = els.globalSettingsBackdrop;
+  const toggle = els.globalSettingsToggleBtn;
+  const open = Boolean(appState.globalSettingsOpen);
+  if (panel) {
+    panel.setAttribute("aria-hidden", String(!open));
+    panel.classList.toggle("open", open);
   }
-  const open = Boolean(appState.monitorAddPanelOpen);
-  els.monitorAddPanel.hidden = !open;
-  els.monitorAddPanel.setAttribute("aria-hidden", String(!open));
-  els.monitorAddToggleBtn.setAttribute("aria-expanded", String(open));
-  els.monitorAddToggleBtn.textContent = open ? "Close new monitor form" : "New monitor";
+  if (backdrop) {
+    backdrop.setAttribute("aria-hidden", String(!open));
+    backdrop.classList.toggle("open", open);
+  }
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.classList.toggle("active", open);
+  }
+  applyOverlayBodyState();
 }
 
 function applyMonitorSettingsPanelState() {
@@ -791,6 +810,19 @@ function monitorCard(monitor, isActive) {
   return button;
 }
 
+function monitorAddTab() {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "monitor-tab monitor-tab-add";
+  button.dataset.action = "add-monitor";
+  button.setAttribute("aria-label", "Add monitor");
+  button.innerHTML = `
+    <span class="monitor-tab-add-icon" aria-hidden="true">+</span>
+    <span class="monitor-tab-add-text">New monitor</span>
+  `;
+  return button;
+}
+
 function listingCard(listing) {
   const updated = isRecentlyUpdated(listing);
   const model = inferModel(listing);
@@ -889,29 +921,16 @@ function listingCard(listing) {
 
 function renderMonitorList(payload) {
   const monitors = payload.monitors || [];
-  if (els.monitorsCount) {
-    els.monitorsCount.textContent = String(monitors.length);
-  }
-  if (els.monitorTabsCount) {
-    els.monitorTabsCount.textContent = String(monitors.length);
-  }
   if (!els.monitorTabs) {
     return;
   }
   els.monitorTabs.innerHTML = "";
-  applyMobilePanelState();
-  if (monitors.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state monitor-tabs-empty";
-    empty.textContent = "No monitors configured.";
-    els.monitorTabs.appendChild(empty);
-    return;
-  }
 
   monitors.forEach((monitor) => {
     const active = monitor.id === payload.activeMonitorId;
     els.monitorTabs.appendChild(monitorCard(monitor, active));
   });
+  els.monitorTabs.appendChild(monitorAddTab());
 }
 
 function renderActiveMonitor(payload) {
@@ -920,9 +939,6 @@ function renderActiveMonitor(payload) {
     appState.expandedListingIds.clear();
     appState.expandedListingMonitorId = null;
     els.activeMonitorTitle.textContent = "No active monitor";
-    if (els.topbarActiveMonitor) {
-      els.topbarActiveMonitor.textContent = "No active monitor";
-    }
     els.activeMonitorName.value = "";
     els.activeMonitorUrl.value = "";
     els.activePollInterval.value = 60;
@@ -966,9 +982,6 @@ function renderActiveMonitor(payload) {
   }
 
   els.activeMonitorTitle.textContent = activeMonitor.name;
-  if (els.topbarActiveMonitor) {
-    els.topbarActiveMonitor.textContent = activeMonitor.name || "Active monitor";
-  }
   els.activeMonitorName.value = activeMonitor.name || "";
   els.activeMonitorUrl.value = activeMonitor.searchUrl || "";
   els.activePollInterval.value = Math.round((activeMonitor.pollIntervalMs || 0) / 1000);
@@ -1142,6 +1155,12 @@ async function refreshDashboard() {
 
 if (els.monitorTabs) {
   els.monitorTabs.addEventListener("click", async (event) => {
+    const addButton = event.target.closest("[data-action='add-monitor']");
+    if (addButton) {
+      appState.monitorAddModalOpen = true;
+      applyMonitorAddModalState();
+      return;
+    }
     const button = event.target.closest("[data-monitor-id]");
     if (!button) {
       return;
@@ -1180,8 +1199,8 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
     els.addMonitorForm.reset();
     els.addPollInterval.value = "60";
     els.addNewBadge.value = "120";
-    appState.monitorAddPanelOpen = false;
-    applyMonitorAddPanelState();
+    appState.monitorAddModalOpen = false;
+    applyMonitorAddModalState();
     renderDashboard(payload);
   } catch (error) {
     pushDebugLog("error", "Failed to add monitor", { error: error.message });
@@ -1379,32 +1398,38 @@ if (els.dashboardThemeSelect) {
   });
 }
 
-if (els.monitorPanelToggleBtn) {
-  els.monitorPanelToggleBtn.addEventListener("click", () => {
-    if (!isSmartphoneViewport()) {
-      return;
-    }
-    appState.mobilePanelCollapsed = !appState.mobilePanelCollapsed;
-    applyMobilePanelState();
+if (els.globalSettingsToggleBtn) {
+  els.globalSettingsToggleBtn.addEventListener("click", () => {
+    appState.globalSettingsOpen = !appState.globalSettingsOpen;
+    applyGlobalSettingsPanelState();
   });
 }
 
-if (els.monitorAddToggleBtn) {
-  els.monitorAddToggleBtn.addEventListener("click", () => {
-    appState.monitorAddPanelOpen = !appState.monitorAddPanelOpen;
-    applyMonitorAddPanelState();
-    if (appState.monitorAddPanelOpen && els.addMonitorName) {
-      setTimeout(() => {
-        els.addMonitorName.focus();
-      }, 0);
-    }
+if (els.globalSettingsCloseBtn) {
+  els.globalSettingsCloseBtn.addEventListener("click", () => {
+    appState.globalSettingsOpen = false;
+    applyGlobalSettingsPanelState();
+  });
+}
+
+if (els.globalSettingsBackdrop) {
+  els.globalSettingsBackdrop.addEventListener("click", () => {
+    appState.globalSettingsOpen = false;
+    applyGlobalSettingsPanelState();
   });
 }
 
 if (els.monitorAddCloseBtn) {
   els.monitorAddCloseBtn.addEventListener("click", () => {
-    appState.monitorAddPanelOpen = false;
-    applyMonitorAddPanelState();
+    appState.monitorAddModalOpen = false;
+    applyMonitorAddModalState();
+  });
+}
+
+if (els.monitorAddCancelBtn) {
+  els.monitorAddCancelBtn.addEventListener("click", () => {
+    appState.monitorAddModalOpen = false;
+    applyMonitorAddModalState();
   });
 }
 
@@ -1432,6 +1457,32 @@ if (els.debugLogPauseBtn) {
       pushDebugLog("info", "Debug log resumed.");
     } else {
       pushDebugLog("warn", "Debug log paused.");
+    }
+  });
+}
+
+if (els.monitorAddModal) {
+  els.monitorAddModal.addEventListener("click", (event) => {
+    if (event.target === els.monitorAddModal) {
+      appState.monitorAddModalOpen = false;
+      applyMonitorAddModalState();
+    }
+  });
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+    if (appState.monitorAddModalOpen) {
+      appState.monitorAddModalOpen = false;
+      applyMonitorAddModalState();
+      return;
+    }
+    if (appState.globalSettingsOpen) {
+      appState.globalSettingsOpen = false;
+      applyGlobalSettingsPanelState();
     }
   });
 }
@@ -1482,15 +1533,9 @@ refreshDashboard().catch((error) => {
   pushDebugLog("error", "Initial dashboard load failed", { error: error.message });
   alert(`Failed to load dashboard: ${error.message}`);
 });
-if (typeof window !== "undefined") {
-  appState.mobilePanelCollapsed = isSmartphoneViewport();
-}
 applyDashboardTheme(appState.dashboardTheme);
-if (typeof window !== "undefined") {
-  window.addEventListener("resize", applyMobilePanelState);
-}
 pushDebugLog("info", "Initial UI ready.");
-applyMobilePanelState();
 applyMonitorSettingsPanelState();
-applyMonitorAddPanelState();
+applyMonitorAddModalState();
+applyGlobalSettingsPanelState();
 connectSse();

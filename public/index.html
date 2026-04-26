@@ -18,9 +18,7 @@
         <span class="brand-icon" aria-hidden="true">C</span>
         <span class="brand-name">CarMon</span>
       </div>
-      <div class="topbar-center">
-        <span id="topbar-active-monitor" class="topbar-monitor">No active monitor</span>
-      </div>
+      <div id="monitor-tabs" class="monitor-tabs-list" role="tablist" aria-label="Configured monitors"></div>
       <div class="topbar-actions">
         <span class="topbar-poll-pill">
           <span id="topbar-poll-dot" class="topbar-poll-dot" aria-hidden="true"></span>
@@ -35,141 +33,25 @@
             <option value="pulse">Pulse</option>
           </select>
         </label>
-      </div>
-    </header>
-    <section class="monitor-tabs-shell">
-      <div class="monitor-tabs-head">
-        <div class="monitor-tabs-title-row">
-          <h1>Monitors</h1>
-          <span id="monitor-tabs-count" class="count-pill">0</span>
-        </div>
         <button
-          id="monitor-add-toggle-btn"
+          id="global-settings-toggle-btn"
           type="button"
-          class="btn small"
+          class="icon-btn"
           aria-expanded="false"
-          aria-controls="monitor-add-panel"
+          aria-controls="global-settings-panel"
+          title="Global settings"
         >
-          New monitor
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path
+              d="M19.14 12.94a7.43 7.43 0 0 0 .05-.94 7.43 7.43 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.24 7.24 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.24 7.24 0 0 0-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.43 7.43 0 0 0-.05.94 7.43 7.43 0 0 0 .05.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.39 1.05.71 1.63.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.58-.23 1.13-.55 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64Zm-7.14 2.56A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"
+              fill="currentColor"
+            />
+          </svg>
+          <span class="sr-only">Open global settings</span>
         </button>
       </div>
-      <p class="muted monitors-hint">Switch monitors quickly using tabs. Add new ones when needed.</p>
-      <div id="monitor-tabs" class="monitor-tabs-list" role="tablist" aria-label="Configured monitors"></div>
-
-      <section id="monitor-add-panel" class="monitor-add-panel" hidden>
-        <div class="monitor-add-panel-head">
-          <h2>Add monitor</h2>
-          <button id="monitor-add-close-btn" type="button" class="btn secondary small">
-            Close
-          </button>
-        </div>
-        <form id="add-monitor-form">
-          <label>
-            Monitor name
-            <input id="add-monitor-name" type="text" placeholder="BMW X3 M 2020-2022" />
-          </label>
-          <label>
-            Search URL
-            <input id="add-monitor-url" type="url" required placeholder="https://autoplius.lt/..." />
-          </label>
-          <div class="row">
-            <label>
-              Poll interval (s)
-              <input id="add-poll-interval" type="number" min="15" value="60" />
-            </label>
-            <label>
-              NEW window (min)
-              <input id="add-new-badge" type="number" min="1" value="120" />
-            </label>
-          </div>
-          <button id="add-monitor-btn" type="submit" class="btn">
-            <span class="btn-label">Create monitor</span>
-            <span class="btn-spinner" aria-hidden="true"></span>
-          </button>
-        </form>
-      </section>
-    </section>
+    </header>
     <main class="layout">
-      <aside class="card monitors-panel">
-        <div class="panel-head">
-          <h1>Global settings</h1>
-          <div class="panel-head-actions">
-            <button
-              id="monitor-panel-toggle-btn"
-              type="button"
-              class="btn secondary small mobile-panel-toggle"
-              aria-expanded="true"
-            >
-              Hide settings
-            </button>
-          </div>
-        </div>
-        <p class="muted monitors-hint">Adjust parser-related settings for all monitors.</p>
-
-        <section class="sub-card">
-          <h2>Parser mode</h2>
-          <button
-            id="claude-toggle-btn"
-            type="button"
-            class="btn secondary toggle-btn"
-            aria-pressed="false"
-          >
-            <span class="btn-label">Claude fallback OFF</span>
-            <span class="btn-spinner" aria-hidden="true"></span>
-          </button>
-          <p id="claude-status-text" class="muted tiny">
-            Deterministic parser only.
-          </p>
-          <form id="claude-settings-form" class="claude-settings-form">
-            <label>
-              API key
-              <input
-                id="claude-api-key"
-                type="password"
-                autocomplete="off"
-                placeholder="sk-ant-..."
-              />
-            </label>
-            <label>
-              Model
-              <input id="claude-model" type="text" placeholder="claude-3-5-haiku-latest" />
-            </label>
-            <div class="row">
-              <label>
-                Reasoning strength
-                <select id="claude-reasoning-strength">
-                  <option value="low">low</option>
-                  <option value="balanced">balanced</option>
-                  <option value="high">high</option>
-                </select>
-              </label>
-              <label>
-                Max candidates
-                <input id="claude-max-candidates" type="number" min="1" max="30" />
-              </label>
-            </div>
-            <div class="row">
-              <label>
-                Min confidence
-                <input id="claude-min-confidence" type="number" min="0" max="1" step="0.01" />
-              </label>
-              <label>
-                Temperature
-                <input id="claude-temperature" type="number" min="0" max="1" step="0.01" />
-              </label>
-            </div>
-            <label>
-              Max tokens
-              <input id="claude-max-tokens" type="number" min="80" max="1200" />
-            </label>
-            <button id="save-claude-settings-btn" type="submit" class="btn secondary">
-              <span class="btn-label">Save Claude settings</span>
-              <span class="btn-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
-        </section>
-      </aside>
-
       <section class="main-column">
         <section class="card monitor-detail">
           <div class="panel-head">
@@ -328,6 +210,130 @@
 
       </section>
     </main>
+    <div id="global-settings-backdrop" class="drawer-backdrop" aria-hidden="true"></div>
+    <aside id="global-settings-panel" class="card monitors-panel global-settings-drawer" aria-hidden="true">
+      <div class="panel-head">
+        <h1>Global settings</h1>
+        <div class="panel-head-actions">
+          <button id="global-settings-close-btn" type="button" class="btn secondary small">
+            Close
+          </button>
+        </div>
+      </div>
+      <p class="muted monitors-hint">Adjust parser-related settings for all monitors.</p>
+
+      <section class="sub-card">
+        <h2>Parser mode</h2>
+        <button
+          id="claude-toggle-btn"
+          type="button"
+          class="btn secondary toggle-btn"
+          aria-pressed="false"
+        >
+          <span class="btn-label">Claude fallback OFF</span>
+          <span class="btn-spinner" aria-hidden="true"></span>
+        </button>
+        <p id="claude-status-text" class="muted tiny">
+          Deterministic parser only.
+        </p>
+        <form id="claude-settings-form" class="claude-settings-form">
+          <label>
+            API key
+            <input
+              id="claude-api-key"
+              type="password"
+              autocomplete="off"
+              placeholder="sk-ant-..."
+            />
+          </label>
+          <label>
+            Model
+            <input id="claude-model" type="text" placeholder="claude-3-5-haiku-latest" />
+          </label>
+          <div class="row">
+            <label>
+              Reasoning strength
+              <select id="claude-reasoning-strength">
+                <option value="low">low</option>
+                <option value="balanced">balanced</option>
+                <option value="high">high</option>
+              </select>
+            </label>
+            <label>
+              Max candidates
+              <input id="claude-max-candidates" type="number" min="1" max="30" />
+            </label>
+          </div>
+          <div class="row">
+            <label>
+              Min confidence
+              <input id="claude-min-confidence" type="number" min="0" max="1" step="0.01" />
+            </label>
+            <label>
+              Temperature
+              <input id="claude-temperature" type="number" min="0" max="1" step="0.01" />
+            </label>
+          </div>
+          <label>
+            Max tokens
+            <input id="claude-max-tokens" type="number" min="80" max="1200" />
+          </label>
+          <button id="save-claude-settings-btn" type="submit" class="btn secondary">
+            <span class="btn-label">Save Claude settings</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+      </section>
+    </aside>
+    <div id="monitor-add-modal" class="modal-backdrop" hidden aria-hidden="true">
+      <div
+        class="modal monitor-add-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="monitor-add-title"
+      >
+        <div class="modal-head">
+          <div>
+            <p class="modal-eyebrow">Create monitor</p>
+            <h2 id="monitor-add-title">Add monitor</h2>
+          </div>
+          <button id="monitor-add-close-btn" type="button" class="btn secondary small">
+            Close
+          </button>
+        </div>
+        <form id="add-monitor-form" class="modal-form">
+          <div class="modal-body">
+            <label>
+              Monitor name
+              <input id="add-monitor-name" type="text" placeholder="BMW X3 M 2020-2022" />
+            </label>
+            <label>
+              Search URL
+              <input id="add-monitor-url" type="url" required placeholder="https://autoplius.lt/..." />
+            </label>
+            <div class="row">
+              <label>
+                Poll interval (s)
+                <input id="add-poll-interval" type="number" min="15" value="60" />
+              </label>
+              <label>
+                NEW window (min)
+                <input id="add-new-badge" type="number" min="1" value="120" />
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="monitor-add-cancel-btn" type="button" class="btn secondary">
+              Cancel
+            </button>
+            <button id="add-monitor-btn" type="submit" class="btn">
+              <span class="btn-label">Create monitor</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>
