@@ -504,31 +504,68 @@ input {
   grid-template-rows: auto auto;
   align-self: stretch;
   min-width: 172px;
-  background: color-mix(in srgb, #0f172a 55%, #000);
+  background: color-mix(in srgb, #0f172a 46%, #000);
 }
 
 .status-item-mode.status-item-mode-on .status-value {
-  color: #ffffff;
-  background: color-mix(in srgb, #16a34a 78%, #052e16);
-  border: 1px solid color-mix(in srgb, #22c55e 68%, #14532d);
+  color: color-mix(in srgb, var(--text) 92%, #d1fae5 8%);
+  background: color-mix(in srgb, #052e16 30%, #0b1220);
+  border: 1px solid color-mix(in srgb, #22c55e 44%, var(--card-border));
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 1.3rem;
-  padding: 0.02rem 0.48rem;
+  justify-content: flex-start;
+  gap: 0.26rem;
+  min-height: 1.24rem;
+  padding: 0.02rem 0.44rem 0.02rem 0.36rem;
 }
 
 .status-item-mode.status-item-mode-off .status-value {
-  color: #ffffff;
-  background: color-mix(in srgb, #f97316 76%, #7c2d12);
-  border: 1px solid color-mix(in srgb, #fb923c 68%, #9a3412);
+  color: color-mix(in srgb, var(--text) 92%, #ffedd5 8%);
+  background: color-mix(in srgb, #7c2d12 22%, #0b1220);
+  border: 1px solid color-mix(in srgb, #f97316 40%, var(--card-border));
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-height: 1.3rem;
-  padding: 0.02rem 0.48rem;
+  justify-content: flex-start;
+  gap: 0.26rem;
+  min-height: 1.24rem;
+  padding: 0.02rem 0.44rem 0.02rem 0.36rem;
+}
+
+.status-item-mode.status-item-mode-unavailable .status-value {
+  color: color-mix(in srgb, var(--text) 84%, var(--muted) 16%);
+  background: color-mix(in srgb, #334155 18%, #0b1220);
+  border: 1px solid color-mix(in srgb, #64748b 38%, var(--card-border));
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.26rem;
+  min-height: 1.24rem;
+  padding: 0.02rem 0.44rem 0.02rem 0.36rem;
+}
+
+.status-item-mode.status-item-mode-on .status-value::before,
+.status-item-mode.status-item-mode-off .status-value::before,
+.status-item-mode.status-item-mode-unavailable .status-value::before {
+  content: "";
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-item-mode.status-item-mode-on .status-value::before {
+  background: #22c55e;
+}
+
+.status-item-mode.status-item-mode-off .status-value::before {
+  background: #f97316;
+}
+
+.status-item-mode.status-item-mode-unavailable .status-value::before {
+  background: #94a3b8;
 }
 
 .topbar {

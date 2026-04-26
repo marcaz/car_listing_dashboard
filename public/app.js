@@ -264,6 +264,7 @@ function applyActiveMonitorPollStatusDisplay() {
     return;
   }
 
+  modeDd.innerHTML = "";
   const collapsedMode = formatCollapsedClaudeModeLabel(settings);
   if (modeItem) {
     modeItem.classList.toggle("status-item-mode-on", collapsed && collapsedMode.tone === "on");
@@ -275,16 +276,38 @@ function applyActiveMonitorPollStatusDisplay() {
   }
 
   if (!activeMonitor) {
-    modeDd.textContent = collapsed ? collapsedMode.text : "-";
+    if (collapsed) {
+      renderCollapsedModeToken(modeDd, collapsedMode);
+    } else {
+      modeDd.textContent = "-";
+    }
     return;
   }
 
   const pollStatus = activeMonitor.lastPoll || {};
   if (collapsed) {
-    modeDd.textContent = collapsedMode.text;
+    renderCollapsedModeToken(modeDd, collapsedMode);
   } else {
     modeDd.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
   }
+}
+
+function renderCollapsedModeToken(target, modeState) {
+  if (!target) {
+    return;
+  }
+  const tone = modeState?.tone || "unavailable";
+  const text = modeState?.text || "Claude unavailable";
+  const token = document.createElement("span");
+  token.className = `mode-status-token mode-status-token-${tone}`;
+  const dot = document.createElement("span");
+  dot.className = "mode-status-dot";
+  dot.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.className = "mode-status-text";
+  label.textContent = text;
+  token.append(dot, label);
+  target.appendChild(token);
 }
 
 function formatCompactModeLabel(mode) {
