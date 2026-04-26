@@ -11,9 +11,19 @@
       <aside class="card monitors-panel">
         <div class="panel-head">
           <h1>Monitors</h1>
-          <span id="monitors-count" class="count-pill">0</span>
+          <div class="panel-head-actions">
+            <button
+              id="monitor-panel-toggle-btn"
+              type="button"
+              class="btn secondary small mobile-panel-toggle"
+              aria-expanded="true"
+            >
+              Hide settings
+            </button>
+            <span id="monitors-count" class="count-pill">0</span>
+          </div>
         </div>
-        <p class="muted">Track multiple search URLs at the same time.</p>
+        <p class="muted monitors-hint">Track multiple search URLs at the same time.</p>
 
         <div id="monitor-list" class="monitor-list" aria-label="Configured monitors"></div>
 

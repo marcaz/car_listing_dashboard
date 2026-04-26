@@ -41,6 +41,7 @@ const els = {
   debugLogFeed: document.getElementById("debug-log-feed"),
   debugLogClearBtn: document.getElementById("debug-log-clear-btn"),
   debugLogPauseBtn: document.getElementById("debug-log-pause-btn"),
+  monitorPanelToggleBtn: document.getElementById("monitor-panel-toggle-btn"),
 };
 
 const actionState = {
@@ -59,6 +60,7 @@ const appState = {
   expandedListingIds: new Set(),
   expandedListingMonitorId: null,
   debugLogPaused: false,
+  mobilePanelCollapsed: true,
 };
 
 const DEBUG_LOG_LIMIT = 160;
@@ -101,6 +103,33 @@ function pushDebugLog(level, message, details) {
   els.debugLogFeed.prepend(entry);
   while (els.debugLogFeed.children.length > DEBUG_LOG_LIMIT) {
     els.debugLogFeed.removeChild(els.debugLogFeed.lastChild);
+  }
+}
+
+function isSmartphoneViewport() {
+  return window.matchMedia("(max-width: 760px)").matches;
+}
+
+function applyMobilePanelState() {
+  if (!els.monitorList) {
+    return;
+  }
+  const mobile = isSmartphoneViewport();
+  if (!mobile) {
+    document.body.classList.remove("mobile-panel-collapsed");
+    if (els.monitorPanelToggleBtn) {
+      els.monitorPanelToggleBtn.setAttribute("aria-expanded", "true");
+      els.monitorPanelToggleBtn.textContent = "Hide settings";
+    }
+    return;
+  }
+  document.body.classList.toggle("mobile-panel-collapsed", appState.mobilePanelCollapsed);
+  if (els.monitorPanelToggleBtn) {
+    const expanded = !appState.mobilePanelCollapsed;
+    els.monitorPanelToggleBtn.setAttribute("aria-expanded", String(expanded));
+    els.monitorPanelToggleBtn.textContent = expanded
+      ? "Hide monitor settings"
+      : "Show monitor settings";
   }
 }
 
@@ -664,7 +693,7 @@ function listingCard(listing) {
   modelCell.appendChild(link);
 
   const yearCell = document.createElement("div");
-  yearCell.className = "listing-cell";
+  yearCell.className = "listing-cell year";
   yearCell.textContent = year || "-";
 
   const priceCell = document.createElement("div");
@@ -733,6 +762,7 @@ function renderMonitorList(payload) {
   const monitors = payload.monitors || [];
   els.monitorsCount.textContent = String(monitors.length);
   els.monitorList.innerHTML = "";
+  applyMobilePanelState();
   if (monitors.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
@@ -1141,6 +1171,16 @@ if (els.listingSortBy) {
   });
 }
 
+if (els.monitorPanelToggleBtn) {
+  els.monitorPanelToggleBtn.addEventListener("click", () => {
+    if (!isSmartphoneViewport()) {
+      return;
+    }
+    appState.mobilePanelCollapsed = !appState.mobilePanelCollapsed;
+    applyMobilePanelState();
+  });
+}
+
 if (els.debugLogClearBtn) {
   els.debugLogClearBtn.addEventListener("click", () => {
     if (els.debugLogFeed) {
@@ -1204,5 +1244,12 @@ refreshDashboard().catch((error) => {
   pushDebugLog("error", "Initial dashboard load failed", { error: error.message });
   alert(`Failed to load dashboard: ${error.message}`);
 });
+if (typeof window !== "undefined") {
+  appState.mobilePanelCollapsed = isSmartphoneViewport();
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", applyMobilePanelState);
+}
 pushDebugLog("info", "Initial UI ready.");
+applyMobilePanelState();
 connectSse();
