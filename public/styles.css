@@ -30,11 +30,13 @@ body {
   gap: 1rem;
   grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
   align-items: start;
+  overflow-x: hidden;
 }
 
 .main-column {
   display: grid;
   gap: 1rem;
+  min-width: 0;
 }
 
 .card {
@@ -42,6 +44,7 @@ body {
   border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 1rem;
+  min-width: 0;
 }
 
 .sub-card {
@@ -70,6 +73,7 @@ h2 {
   justify-content: space-between;
   align-items: center;
   gap: 0.6rem;
+  min-width: 0;
 }
 
 .count-pill {
@@ -86,7 +90,8 @@ h2 {
   border-radius: 999px;
   border: 1px solid var(--card-border);
   padding: 0.18rem 0.55rem;
-  max-width: 55%;
+  max-width: min(68%, 100%);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -123,6 +128,7 @@ label {
   display: grid;
   gap: 0.25rem;
   font-size: 0.9rem;
+  min-width: 0;
 }
 
 input,
@@ -132,6 +138,12 @@ button {
   padding: 0.55rem 0.75rem;
   background: #0f172a;
   color: var(--text);
+}
+
+input {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .row {
@@ -670,6 +682,10 @@ dd {
 @media (max-width: 1024px) {
   .layout {
     grid-template-columns: 1fr;
+  }
+
+  .url-chip {
+    max-width: 100%;
   }
 }
 
