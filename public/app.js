@@ -259,18 +259,18 @@ function applyActiveMonitorPollStatusDisplay() {
   }
 
   claudeStateInline.classList.remove(
-    "status-item-mode-on",
-    "status-item-mode-off",
-    "status-item-mode-unavailable"
+    "monitor-status-chip--claude-on",
+    "monitor-status-chip--claude-off",
+    "monitor-status-chip--claude-unavailable"
   );
   claudeStateInline.innerHTML = "";
   const collapsedMode = formatCollapsedClaudeModeLabel(settings);
   if (collapsedMode.tone === "on") {
-    claudeStateInline.classList.add("status-item-mode-on");
+    claudeStateInline.classList.add("monitor-status-chip--claude-on");
   } else if (collapsedMode.tone === "off") {
-    claudeStateInline.classList.add("status-item-mode-off");
+    claudeStateInline.classList.add("monitor-status-chip--claude-off");
   } else {
-    claudeStateInline.classList.add("status-item-mode-unavailable");
+    claudeStateInline.classList.add("monitor-status-chip--claude-unavailable");
   }
   renderCollapsedModeToken(claudeStateInline, collapsedMode);
 }
@@ -282,13 +282,20 @@ function renderCollapsedModeToken(target, modeState) {
   const tone = modeState?.tone || "unavailable";
   const text = modeState?.text || "Claude unavailable";
   const token = document.createElement("span");
-  token.className = `mode-status-token mode-status-token-${tone}`;
+  token.className = "monitor-status-chip__inner";
   const dot = document.createElement("span");
-  dot.className = "mode-status-dot";
+  dot.className = "status-chip-dot";
   dot.setAttribute("aria-hidden", "true");
   const label = document.createElement("span");
-  label.className = "mode-status-text";
+  label.className = "status-chip-text";
   label.textContent = text;
+  if (tone === "on") {
+    dot.classList.add("status-chip-dot--on");
+  } else if (tone === "off") {
+    dot.classList.add("status-chip-dot--off");
+  } else {
+    dot.classList.add("status-chip-dot--neutral");
+  }
   token.append(dot, label);
   target.appendChild(token);
 }
@@ -1071,8 +1078,8 @@ function renderActiveMonitor(payload) {
     Boolean(activeMonitor.pollingInProgress) ||
     actionState.pollingMonitor ||
     actionState.savingMonitor;
-  els.pollingIndicator.classList.toggle("polling", pollingNow);
-  els.pollingIndicator.classList.toggle("idle", !pollingNow);
+  els.pollingIndicator.classList.toggle("monitor-status-chip--poll-polling", pollingNow);
+  els.pollingIndicator.classList.toggle("monitor-status-chip--poll-idle", !pollingNow);
   els.pollingText.textContent = pollingNow
     ? `Polling ${activeMonitor.name}...`
     : "Idle - waiting for next poll";

@@ -495,6 +495,10 @@ input {
   --status-chip-font: 0.55rem;
   --status-chip-line: 1.1;
   --status-chip-dot: 0.27rem;
+  --status-chip-border: 1px solid var(--card-border);
+  --status-chip-radius: 999px;
+  --status-chip-ff: "DM Sans", Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --status-chip-ga: 0.18rem;
   display: flex;
   align-items: stretch;
   flex-wrap: wrap;
@@ -504,96 +508,134 @@ input {
   min-width: 0;
 }
 
-.monitor-status-inline-row .polling-indicator {
-  margin: 0;
-  flex: 0 0 auto;
-  width: max-content;
-  max-width: 100%;
+.monitor-status-chip {
   box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
   min-height: var(--status-chip-min-h);
+  max-height: var(--status-chip-min-h);
   padding: var(--status-chip-pad-y) var(--status-chip-pad-x) var(--status-chip-pad-y) calc(var(--status-chip-pad-x) - 0.06rem);
-  gap: 0.18rem;
+  gap: var(--status-chip-ga);
+  border: var(--status-chip-border);
+  border-radius: var(--status-chip-radius);
+  font-family: var(--status-chip-ff);
   font-size: var(--status-chip-font);
   line-height: var(--status-chip-line);
-  font-family: "DM Sans", Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-}
-
-.monitor-status-inline-row .polling-indicator .poll-dot {
-  width: var(--status-chip-dot);
-  height: var(--status-chip-dot);
-  flex-shrink: 0;
-}
-
-.monitor-status-inline-row .monitor-claude-indicator {
-  display: flex;
-  align-items: center;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--text);
+  width: max-content;
+  max-width: 100%;
   flex: 0 0 auto;
   min-width: 0;
-  width: max-content;
-  max-width: 100%;
 }
 
-.monitor-claude-indicator {
-  display: inline-flex;
+.monitor-claude-indicator.monitor-status-chip {
+  display: flex;
   align-items: center;
-  min-width: 0;
-  flex: 0 1 auto;
+  padding: 0;
+  border: none;
+  min-height: 0;
+  max-height: none;
+  background: transparent;
 }
 
-.monitor-claude-indicator .mode-status-token {
-  color: color-mix(in srgb, var(--text) 92%, #d1fae5 8%);
-  background: color-mix(in srgb, #052e16 30%, #0b1220);
-  border: 1px solid color-mix(in srgb, #22c55e 44%, var(--card-border));
-  border-radius: 999px;
+.monitor-status-chip__inner,
+.monitor-claude-indicator .monitor-status-chip__inner {
   display: inline-flex;
   align-items: center;
-  align-self: center;
-  justify-content: flex-start;
+  min-height: var(--status-chip-min-h);
+  max-height: var(--status-chip-min-h);
+  width: 100%;
   box-sizing: border-box;
-  gap: 0.18rem;
-  min-height: var(--status-chip-min-h, 1.1rem);
-  padding: var(--status-chip-pad-y, 0.14rem) var(--status-chip-pad-x, 0.34rem) var(--status-chip-pad-y, 0.14rem) calc(var(--status-chip-pad-x, 0.34rem) - 0.06rem);
-  font-size: var(--status-chip-font, 0.55rem);
-  line-height: var(--status-chip-line, 1.1);
-  width: max-content;
+  margin: 0;
+  padding: var(--status-chip-pad-y) var(--status-chip-pad-x) var(--status-chip-pad-y) calc(var(--status-chip-pad-x) - 0.06rem);
+  gap: var(--status-chip-ga);
+  border: var(--status-chip-border);
+  border-radius: var(--status-chip-radius);
+  font-family: var(--status-chip-ff);
+  font-size: var(--status-chip-font);
+  line-height: var(--status-chip-line);
+  letter-spacing: 0.01em;
+  font-weight: 500;
+}
+
+.status-chip-text {
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
   max-width: 100%;
 }
 
-.monitor-claude-indicator.status-item-mode-off .mode-status-token,
-.monitor-claude-indicator .mode-status-token.mode-status-token-off {
-  color: #fff7ed;
-  background: color-mix(in srgb, #c2410c 58%, #0b1220 42%);
-  border: 1px solid color-mix(in srgb, #fb923c 72%, #7c2d12 28%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, #f97316 18%, transparent);
-}
-
-.monitor-claude-indicator.status-item-mode-unavailable .mode-status-token {
-  color: color-mix(in srgb, var(--text) 84%, var(--muted) 16%);
-  background: color-mix(in srgb, #334155 18%, #0b1220);
-  border-color: color-mix(in srgb, #64748b 38%, var(--card-border));
-}
-
-.monitor-claude-indicator .mode-status-dot {
-  content: "";
-  width: var(--status-chip-dot, 0.27rem);
-  height: var(--status-chip-dot, 0.27rem);
+.status-chip-dot {
+  width: var(--status-chip-dot);
+  height: var(--status-chip-dot);
   border-radius: 50%;
   flex-shrink: 0;
-  background: #22c55e;
 }
 
-.monitor-claude-indicator.status-item-mode-off .mode-status-dot {
-  background: #f97316;
+/* Polling: idle (muted) / polling (active green tint) */
+.monitor-status-chip--poll-idle {
+  color: color-mix(in srgb, var(--text) 72%, var(--muted) 28%);
+  background: color-mix(in srgb, #0f172a 45%, #000 55%);
+  border: var(--status-chip-border);
 }
 
-.monitor-claude-indicator.status-item-mode-unavailable .mode-status-dot {
+.monitor-status-chip--poll-idle .status-chip-dot {
   background: #94a3b8;
 }
 
-.monitor-claude-indicator .mode-status-text {
-  font-size: 0.55rem;
-  line-height: 1.1;
-  letter-spacing: 0.01em;
+.monitor-status-chip--poll-polling {
+  color: #86efac;
+  background: color-mix(in srgb, #052e16 40%, #0b1220 60%);
+  border: 1px solid color-mix(in srgb, var(--new) 48%, var(--card-border) 52%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--new) 12%, transparent);
+}
+
+.monitor-status-chip--poll-polling .status-chip-dot {
+  background: var(--new);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+/* Claude: on / off / unavailable */
+.monitor-status-chip--claude-on .monitor-status-chip__inner {
+  color: color-mix(in srgb, var(--text) 92%, #d1fae5 8%);
+  background: color-mix(in srgb, #052e16 30%, #0b1220);
+  border: 1px solid color-mix(in srgb, #22c55e 44%, var(--card-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #22c55e 8%, transparent);
+}
+
+.monitor-status-chip--claude-on .status-chip-dot--on {
+  background: #22c55e;
+}
+
+.monitor-status-chip--claude-off .monitor-status-chip__inner {
+  color: #fff7ed;
+  background: color-mix(in srgb, #c2410c 58%, #0b1220 42%);
+  border: 1px solid color-mix(in srgb, #fb923c 72%, #7c2d12 28%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #f97316 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffedd5 6%, transparent);
+}
+
+.monitor-status-chip--claude-off .status-chip-dot--off {
+  background: #f97316;
+}
+
+.monitor-status-chip--claude-unavailable .monitor-status-chip__inner {
+  color: color-mix(in srgb, var(--text) 84%, var(--muted) 16%);
+  background: color-mix(in srgb, #334155 18%, #0b1220);
+  border-color: color-mix(in srgb, #64748b 38%, var(--card-border));
+  box-shadow: none;
+}
+
+.monitor-status-chip--claude-unavailable .status-chip-dot--neutral {
+  background: #94a3b8;
 }
 
 .topbar {
@@ -1494,7 +1536,7 @@ dd {
     margin-bottom: 0.68rem;
   }
 
-  .monitor-status-inline-row .polling-indicator,
+  .monitor-status-inline-row .monitor-status-chip,
   .monitor-status-inline-row .monitor-claude-indicator {
     flex: 0 0 auto;
   }
