@@ -969,7 +969,7 @@ dd {
   align-items: center;
   gap: 0.55rem;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .listing-cell {
@@ -1021,7 +1021,7 @@ dd {
   align-items: center;
   justify-content: flex-end;
   gap: 0.4rem;
-  flex-shrink: 1;
+  flex-shrink: 0;
   min-width: 0;
 }
 
