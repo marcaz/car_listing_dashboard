@@ -86,13 +86,31 @@ function normalizeCityDeterministic(city) {
   if (!normalized) {
     return null;
   }
+  if (normalized.length > 48) {
+    return null;
+  }
+  if (/\d/.test(normalized) && /€|eur|kw|km|benzinas|dyzelinas|automatin/i.test(normalized)) {
+    return null;
+  }
   const cleaned = normalized.replace(/\b(m\.?|raj\.?|miestas)\b/gi, "").replace(/\s+/g, " ").trim();
+  if (cleaned.length < 2 || cleaned.length > 40) {
+    return null;
+  }
+  if (/\d/.test(cleaned) && !/^[A-Za-zĄČĘĖĮŠŲŪŽąćęėįšųūž.\- ]+$/.test(cleaned)) {
+    return null;
+  }
   return toTitleCase(cleaned);
 }
 
 function normalizeCountryDeterministic(country) {
   const normalized = sanitizeString(country);
   if (!normalized) {
+    return null;
+  }
+  if (normalized.length > 32) {
+    return null;
+  }
+  if (/\d/.test(normalized) || /€|eur|kw|km|benzinas|dyzelinas|automatin/i.test(normalized)) {
     return null;
   }
   const aliasMap = new Map([
@@ -115,6 +133,9 @@ function normalizeCountryDeterministic(country) {
 function inferLocationFromTextDeterministic(input) {
   const normalized = sanitizeString(input);
   if (!normalized) {
+    return { city: null, country: null };
+  }
+  if (normalized.length > 220) {
     return { city: null, country: null };
   }
   const parts = normalized

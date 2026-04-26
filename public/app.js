@@ -290,6 +290,22 @@ function inferCountry(listing) {
   return locationMatch[2]?.trim() || null;
 }
 
+function sanitizeLocationDisplayValue(value) {
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.length > 42) {
+    return null;
+  }
+  if (/\d/.test(normalized) && /€|eur|kw|km|benzinas|dyzelinas|automatin/i.test(normalized)) {
+    return null;
+  }
+  return normalized;
+}
+
 function buildFilteredListings(activeMonitor, segment) {
   const listings = activeMonitor?.listings || [];
   if (segment === "new") {
@@ -592,8 +608,8 @@ function listingCard(listing) {
   const model = inferModel(listing);
   const year = inferYear(listing);
   const price = inferPrice(listing) || "-";
-  const city = inferCity(listing);
-  const country = inferCountry(listing);
+  const city = sanitizeLocationDisplayValue(inferCity(listing));
+  const country = sanitizeLocationDisplayValue(inferCountry(listing));
   const locationLabel = city && country ? `${city}, ${country}` : city || country || "-";
   const expanded = appState.expandedListingIds.has(listing.id);
   const wrapper = document.createElement("article");

@@ -436,6 +436,7 @@ dd {
   gap: 0.45rem;
   min-width: 0;
   flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .listing-top-row {
@@ -443,17 +444,26 @@ dd {
   align-items: center;
   justify-content: space-between;
   gap: 0.55rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .listing-cell {
   color: var(--muted);
   font-size: 0.82rem;
   white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .listing-cell.model {
   min-width: 0;
   max-width: 44%;
+}
+
+.listing-cell.city {
+  flex: 1 1 auto;
 }
 
 .model-link {
@@ -484,6 +494,7 @@ dd {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+  min-width: 0;
 }
 
 .listing-expand-btn {
