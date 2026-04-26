@@ -212,7 +212,13 @@ function applyMonitorSettingsPanelState() {
   panel.hidden = collapsed;
   panel.setAttribute("aria-hidden", String(collapsed));
   toggle.setAttribute("aria-expanded", String(!collapsed));
-  toggle.textContent = collapsed ? "Show monitor settings" : "Hide monitor settings";
+  const label = toggle.querySelector(".monitor-settings-toggle-label");
+  const labelText = collapsed ? "Show monitor settings" : "Hide monitor settings";
+  toggle.setAttribute("title", labelText);
+  if (label) {
+    label.textContent = labelText;
+  }
+  toggle.classList.toggle("monitor-settings-open", !collapsed);
   if (collapsedSummary) {
     collapsedSummary.hidden = !collapsed;
     collapsedSummary.setAttribute("aria-hidden", String(!collapsed));

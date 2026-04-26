@@ -685,13 +685,20 @@ input {
   white-space: nowrap;
 }
 
-.monitor-settings-tools {
-  margin: 0 0 0.75rem;
+.monitor-detail .panel-head {
+  align-items: flex-start;
 }
 
-.monitor-settings-toggle {
-  width: 100%;
-  justify-content: space-between;
+.monitor-settings-toggle-btn .monitor-settings-toggle-icon-hide {
+  display: none;
+}
+
+.monitor-settings-toggle-btn.monitor-settings-open .monitor-settings-toggle-icon-show {
+  display: none;
+}
+
+.monitor-settings-toggle-btn.monitor-settings-open .monitor-settings-toggle-icon-hide {
+  display: block;
 }
 
 .monitor-settings-panel[hidden] {
@@ -1393,10 +1400,6 @@ dd {
     font-size: 0.66rem;
     padding: 0.2rem 0.34rem;
     gap: 0.22rem;
-  }
-
-  .monitor-settings-toggle {
-    margin-bottom: 0.62rem;
   }
 
   .polling-indicator {
