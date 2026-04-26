@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CarMon — Redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #07090f;
+      --card:     #0d1219;
+      --card2:    #111827;
+      --border:   #1a2235;
+      --border2:  #243050;
+      --text:     #eef0f8;
+      --muted:    #4e607e;
+      --muted2:   #8a9ab8;
+      --mono:     'JetBrains Mono', monospace;
+
+      /* Ghost (default) */
+      --accent:      oklch(90% 0.01 240);
+      --accent-dim:  oklch(90% 0.01 240 / 0.12);
+      --accent-glow: oklch(90% 0.01 240 / 0.06);
+      --new-color:   oklch(75% 0.16 155);
+      --new-dim:     oklch(75% 0.16 155 / 0.15);
+      --up-color:    oklch(72% 0.14 240);
+      --up-dim:      oklch(72% 0.14 240 / 0.15);
+      --stale-color: oklch(65% 0.18 25);
+      --stale-dim:   oklch(65% 0.18 25 / 0.15);
+    }
+    [data-theme="ember"] {
+      --accent:      oklch(78% 0.18 55);
+      --accent-dim:  oklch(78% 0.18 55 / 0.14);
+      --accent-glow: oklch(78% 0.18 55 / 0.06);
+    }
+    [data-theme="pulse"] {
+      --accent:      oklch(78% 0.18 195);
+      --accent-dim:  oklch(78% 0.18 195 / 0.14);
+      --accent-glow: oklch(78% 0.18 195 / 0.06);
+    }
+
+    html, body, #root {
+      height: 100%;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* SCROLLBARS */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+    /* TOPBAR */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 52px;
+      display: flex; align-items: center; gap: 0;
+      background: color-mix(in srgb, var(--bg) 85%, transparent);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-brand {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 20px;
+      border-right: 1px solid var(--border);
+      height: 100%;
+      flex-shrink: 0;
+      min-width: 160px;
+    }
+    .brand-icon {
+      width: 24px; height: 24px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: var(--bg); font-weight: 700;
+      flex-shrink: 0;
+    }
+    .brand-name {
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--text);
+    }
+    .monitor-tabs {
+      display: flex; align-items: center; height: 100%;
+      padding: 0 8px; gap: 2px; flex: 1; overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .monitor-tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      height: 52px; padding: 0 16px;
+      display: flex; align-items: center; gap: 8px;
+      background: none; border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 500;
+      color: var(--muted2);
+      cursor: pointer; white-space: nowrap; flex-shrink: 0;
+      position: relative;
+      transition: color 180ms ease;
+    }
+    .tab::after {
+      content: '';
+      position: absolute; bottom: 0; left: 8px; right: 8px; height: 2px;
+      background: var(--accent);
+      border-radius: 2px 2px 0 0;
+      transform: scaleX(0);
+      transition: transform 200ms cubic-bezier(.4,0,.2,1);
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); }
+    .tab.active::after { transform: scaleX(1); }
+    .tab-count {
+      font-size: 10px; font-family: var(--mono);
+      background: var(--accent-dim);
+      color: var(--accent);
+      border-radius: 99px; padding: 1px 6px;
+    }
+    .tab.active .tab-count {
+      background: var(--accent-dim);
+    }
+    .tab-add {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted2);
+      cursor: pointer; font-size: 16px; flex-shrink: 0;
+      transition: border-color 160ms ease, color 160ms ease;
+    }
+    .tab-add:hover { border-color: var(--border2); color: var(--text); }
+    .topbar-end {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 16px;
+      border-left: 1px solid var(--border);
+      height: 100%;
+      flex-shrink: 0;
+    }
+    .poll-pill {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; font-family: var(--mono);
+      color: var(--muted2);
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 99px;
+    }
+    .poll-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted);
+      transition: background 300ms ease;
+    }
+    .poll-dot.active {
+      background: var(--new-color);
+      animation: pulse-dot 1.2s ease-in-out infinite;
+    }
+    .icon-btn {
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted2);
+      cursor: pointer; font-size: 15px;
+      transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+    }
+    .icon-btn:hover, .icon-btn.active { border-color: var(--border2); color: var(--text); background: var(--accent-dim); }
+
+    /* MONITOR BAR */
+    .monitor-bar {
+      position: fixed; top: 52px; left: 0; right: 0; z-index: 90;
+      height: 44px;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 20px;
+      background: color-mix(in srgb, var(--card) 95%, transparent);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .monitor-bar-url {
+      font-size: 11px; font-family: var(--mono);
+      color: var(--muted2);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      flex: 1;
+    }
+    .monitor-bar-url a { color: var(--accent); text-decoration: none; }
+    .monitor-bar-meta {
+      display: flex; align-items: center; gap: 16px;
+      flex-shrink: 0;
+    }
+    .meta-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; color: var(--muted);
+    }
+    .meta-label { color: var(--muted); }
+    .meta-value { color: var(--muted2); font-family: var(--mono); }
+    .poll-btn {
+      height: 26px; padding: 0 12px;
+      background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+      border-radius: 6px; color: var(--accent);
+      font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600;
+      cursor: pointer; flex-shrink: 0;
+      transition: background 160ms ease, filter 160ms ease;
+    }
+    .poll-btn:hover { filter: brightness(1.1); }
+
+    /* CONTENT */
+    .content {
+      margin-top: 96px; /* topbar + monitor-bar */
+      padding: 20px;
+      max-width: 1280px;
+      margin-left: auto; margin-right: auto;
+      padding-top: 116px;
+    }
+
+    /* STATUS STRIP */
+    .status-strip {
+      display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 16px;
+      display: flex; flex-direction: column; gap: 2px;
+      min-width: 120px;
+    }
+    .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .stat-value { font-size: 20px; font-weight: 700; color: var(--text); font-family: var(--mono); }
+    .stat-value.accent { color: var(--accent); }
+    .stat-value.green { color: var(--new-color); }
+
+    /* LISTINGS TOOLBAR */
+    .listings-toolbar {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .segments {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden; flex-shrink: 0;
+    }
+    .seg-btn {
+      padding: 6px 14px;
+      background: none; border: none; border-right: 1px solid var(--border);
+      font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600;
+      color: var(--muted2); cursor: pointer;
+      transition: color 150ms ease, background 150ms ease;
+    }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .sort-wrap {
+      display: flex; align-items: center; gap: 6px;
+      color: var(--muted); font-size: 11px; margin-left: auto;
+    }
+    .sort-select {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 7px; padding: 5px 10px;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 12px;
+      cursor: pointer;
+    }
+    .results-count {
+      font-size: 11px; font-family: var(--mono);
+      color: var(--muted); margin-left: auto;
+    }
+
+    /* LISTING ROW */
+    .listing-feed { display: flex; flex-direction: column; gap: 4px; }
+    .listing-row {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: grid;
+      grid-template-columns: 24px minmax(0,2fr) minmax(0,1fr) 90px 90px 90px auto;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+      animation: row-in 240ms ease both;
+    }
+    .listing-row:hover {
+      border-color: var(--border2);
+      background: var(--card2);
+      transform: translateX(2px);
+    }
+    .listing-row.is-new { border-color: color-mix(in srgb, var(--new-color) 45%, var(--border)); }
+    .listing-row.is-new:hover { border-color: var(--new-color); }
+    .listing-row.is-updated { border-color: color-mix(in srgb, var(--up-color) 35%, var(--border)); }
+    .listing-row.is-stale { border-color: color-mix(in srgb, var(--stale-color) 35%, var(--border)); }
+
+    .listing-row.expanded {
+      grid-template-columns: 1fr;
+      border-color: var(--border2);
+    }
+    .row-indicator {
+      width: 4px; height: 24px; border-radius: 3px;
+      background: var(--border2); flex-shrink: 0;
+    }
+    .is-new .row-indicator { background: var(--new-color); }
+    .is-updated .row-indicator { background: var(--up-color); }
+    .is-stale .row-indicator { background: var(--stale-color); }
+
+    .row-model { min-width: 0; }
+    .model-name {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      text-decoration: none; display: block;
+    }
+    .model-name:hover { color: var(--accent); }
+    .model-sub { font-size: 11px; color: var(--muted2); margin-top: 1px; }
+
+    .row-badges {
+      display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+    }
+    .badge {
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 99px; letter-spacing: 0.03em; white-space: nowrap;
+    }
+    .badge-new { background: var(--new-color); color: var(--bg); }
+    .badge-updated { background: var(--up-dim); color: var(--up-color); border: 1px solid color-mix(in srgb, var(--up-color) 30%, transparent); }
+    .badge-stale { background: var(--stale-dim); color: var(--stale-color); border: 1px solid color-mix(in srgb, var(--stale-color) 30%, transparent); }
+    .badge-drop { background: var(--new-dim); color: var(--new-color); border: 1px solid color-mix(in srgb, var(--new-color) 30%, transparent); }
+    .badge-rise { background: var(--stale-dim); color: var(--stale-color); border: 1px solid color-mix(in srgb, var(--stale-color) 30%, transparent); }
+
+    .row-cell {
+      font-size: 12px; font-family: var(--mono);
+      color: var(--muted2); white-space: nowrap;
+    }
+    .row-cell.price { color: var(--text); font-weight: 600; font-size: 13px; font-family: 'DM Sans', sans-serif; }
+    .row-cell.city { color: var(--muted); }
+
+    .row-meta {
+      font-size: 10px; font-family: var(--mono); color: var(--muted);
+      white-space: nowrap; text-align: right;
+    }
+    .expand-toggle {
+      width: 24px; height: 24px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: 1px solid var(--border);
+      border-radius: 6px; color: var(--muted2); cursor: pointer; font-size: 11px;
+      transition: border-color 150ms, color 150ms, transform 200ms ease;
+    }
+    .expand-toggle:hover { border-color: var(--border2); color: var(--text); }
+    .expand-toggle.open { transform: rotate(180deg); }
+
+    /* EXPANDED DETAILS */
+    .listing-expanded-inner {
+      display: grid; gap: 12px;
+    }
+    .expand-top {
+      display: grid;
+      grid-template-columns: 24px minmax(0,2fr) minmax(0,1fr) 90px 90px 90px auto;
+      align-items: center; gap: 12px;
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px;
+      padding: 12px;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-left: 36px;
+    }
+    .detail-item { display: flex; flex-direction: column; gap: 2px; }
+    .detail-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .detail-val { font-size: 12px; font-family: var(--mono); color: var(--muted2); }
+    .detail-val.hi { color: var(--text); font-weight: 600; }
+    .view-link {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; color: var(--accent);
+      text-decoration: none; padding: 4px 10px;
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+      border-radius: 6px; background: var(--accent-dim);
+      transition: filter 150ms ease;
+      margin-left: 36px;
+    }
+    .view-link:hover { filter: brightness(1.15); }
+
+    /* ADD MONITOR MODAL */
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 300;
+      background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 220ms ease;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border2);
+      border-radius: 16px;
+      width: 440px; max-width: calc(100vw - 40px);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+      transform: translateY(16px) scale(0.97);
+      transition: transform 240ms cubic-bezier(.4,0,.2,1);
+      overflow: hidden;
+    }
+    .modal-backdrop.open .modal { transform: translateY(0) scale(1); }
+    .modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title { font-size: 14px; font-weight: 700; }
+    .modal-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .modal-footer {
+      display: flex; gap: 10px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 60%, var(--card));
+    }
+    .modal-add-btn {
+      flex: 1; padding: 10px;
+      background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+      border-radius: 8px; color: var(--accent);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: filter 150ms ease;
+    }
+    .modal-add-btn:hover { filter: brightness(1.12); }
+    .modal-cancel-btn {
+      padding: 10px 18px;
+      background: none; border: 1px solid var(--border);
+      border-radius: 8px; color: var(--muted2);
+      font-family: 'DM Sans', sans-serif; font-size: 13px;
+      cursor: pointer; transition: border-color 150ms, color 150ms;
+    }
+    .modal-cancel-btn:hover { border-color: var(--border2); color: var(--text); }
+    .url-preview {
+      padding: 8px 10px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 11px; font-family: var(--mono);
+      color: var(--muted2); word-break: break-all;
+      min-height: 36px;
+    }
+    .field-hint { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .preset-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .preset-chip {
+      padding: 3px 10px; border-radius: 99px;
+      border: 1px solid var(--border2); background: none;
+      font-size: 11px; color: var(--muted2); cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: border-color 140ms, color 140ms, background 140ms;
+    }
+    .preset-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .success-flash {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px;
+      background: var(--new-dim); border: 1px solid color-mix(in srgb, var(--new-color) 35%, transparent);
+      border-radius: 8px; color: var(--new-color);
+      font-size: 12px; font-weight: 500;
+    }
+
+    /* SETTINGS DRAWER */
+    .drawer-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.6);
+      opacity: 0; pointer-events: none;
+      transition: opacity 250ms ease;
+    }
+    .drawer-overlay.open { opacity: 1; pointer-events: all; }
+    .settings-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 201;
+      width: 360px;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      transform: translateX(100%);
+      transition: transform 280ms cubic-bezier(.4,0,.2,1);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .settings-drawer.open { transform: translateX(0); }
+    .drawer-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .drawer-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .drawer-close {
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted2); cursor: pointer; font-size: 14px;
+      transition: border-color 150ms, color 150ms;
+    }
+    .drawer-close:hover { border-color: var(--border2); color: var(--text); }
+    .drawer-body {
+      flex: 1; overflow-y: auto;
+      padding: 20px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+    .drawer-section-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 11px; color: var(--muted2); }
+    .field input, .field select {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 10px;
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 12px;
+      width: 100%; transition: border-color 150ms ease;
+    }
+    .field input:focus, .field select:focus {
+      outline: none; border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+    }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .drawer-save-btn {
+      width: 100%; padding: 10px;
+      background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+      border-radius: 8px; color: var(--accent);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: filter 150ms ease;
+    }
+    .drawer-save-btn:hover { filter: brightness(1.1); }
+    .drawer-danger-btn {
+      width: 100%; padding: 8px;
+      background: none; border: 1px solid color-mix(in srgb, var(--stale-color) 30%, var(--border));
+      border-radius: 8px; color: var(--stale-color);
+      font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: background 150ms ease;
+    }
+    .drawer-danger-btn:hover { background: var(--stale-dim); }
+
+    /* DEBUG LOG */
+    .debug-strip {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 80;
+      border-top: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 95%, transparent);
+      backdrop-filter: blur(8px);
+    }
+    .debug-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 20px; cursor: pointer;
+      user-select: none;
+    }
+    .debug-header-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--muted);
+    }
+    .debug-chevron { color: var(--muted); font-size: 10px; transition: transform 200ms ease; }
+    .debug-chevron.open { transform: rotate(180deg); }
+    .debug-actions { display: flex; gap: 6px; margin-left: auto; }
+    .debug-btn {
+      padding: 2px 8px; font-size: 10px;
+      background: none; border: 1px solid var(--border);
+      border-radius: 5px; color: var(--muted2); cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .debug-feed {
+      max-height: 160px; overflow-y: auto;
+      padding: 8px 20px;
+      font-family: var(--mono); font-size: 11px; line-height: 1.5;
+      border-top: 1px solid var(--border);
+    }
+    .log-line { color: #4e607e; margin-bottom: 2px; }
+    .log-line.ok { color: #4ade80; }
+    .log-line.warn { color: #fbbf24; }
+    .log-line.err { color: #f87171; }
+
+    /* EMPTY STATE */
+    .empty-state {
+      text-align: center; padding: 48px 20px;
+      color: var(--muted);
+    }
+    .empty-state-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+    .empty-state p { font-size: 13px; }
+
+    /* ANIMATIONS */
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.4); }
+    }
+    @keyframes row-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* RESPONSIVE */
+    @media (max-width: 900px) {
+      .listing-row:not(.expanded) {
+        grid-template-columns: 24px 1fr auto;
+      }
+      .listing-row > .row-cell:not(.price),
+      .listing-row > .row-meta { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "ghost",
+  "pollingActive": true,
+  "showDebug": false
+}/*EDITMODE-END*/;
+
+/* ── MOCK DATA ─────────────────────────────────────────────── */
+const MONITORS = [
+  { id: 1, name: "BMW X3 M 2020–22",    url: "autoplius.lt/naudoti-automobiliai/bmw/x3-m?year_min=2020", interval: 60,  newBadge: 120, total: 12, newCount: 3 },
+  { id: 2, name: "Audi A6 2021+",        url: "autoplius.lt/naudoti-automobiliai/audi/a6?year_min=2021",  interval: 180, newBadge: 60,  total: 8,  newCount: 1 },
+  { id: 3, name: "Mercedes E 2019+",     url: "autoplius.lt/naudoti-automobiliai/mercedes-benz/e-klase",  interval: 120, newBadge: 90,  total: 5,  newCount: 0 },
+];
+
+const LISTINGS = [
+  { id:1, model:"BMW X3 M Competition",year:2021,price:"€62 900",city:"Vilnius",mileage:"28 000 km",fuel:"Petrol",gearbox:"Automatic",power:"510 hp",color:"Frozen Black",vin:"WBS...",status:"new",   badges:["new"],         firstSeen:"2 min ago",  updated:"—" },
+  { id:2, model:"BMW X3 M Competition",year:2020,price:"€54 500",city:"Kaunas", mileage:"51 200 km",fuel:"Petrol",gearbox:"Automatic",power:"510 hp",color:"Tanzanite Blue",vin:"WBS...",status:"new",   badges:["new","drop"],   firstSeen:"18 min ago", updated:"—" },
+  { id:3, model:"BMW X3 M40i",          year:2021,price:"€49 900",city:"Klaipėda",mileage:"34 500 km",fuel:"Petrol",gearbox:"Automatic",power:"387 hp",color:"Alpine White",vin:"WBA...",status:"updated",badges:["updated"],      firstSeen:"2 h ago",    updated:"price −€1 000" },
+  { id:4, model:"BMW X3 M Competition", year:2022,price:"€71 200",city:"Vilnius",mileage:"12 100 km",fuel:"Petrol",gearbox:"Automatic",power:"510 hp",color:"Toronto Red",vin:"WBS...",status:"",       badges:[],               firstSeen:"1 d ago",    updated:"—" },
+  { id:5, model:"BMW X3 M40d",          year:2020,price:"€41 000",city:"Šiauliai",mileage:"82 000 km",fuel:"Diesel",gearbox:"Automatic",power:"340 hp",color:"Mineral White",vin:"WBA...",status:"stale",badges:["stale"],        firstSeen:"4 d ago",    updated:"—" },
+  { id:6, model:"BMW X3 M Competition", year:2021,price:"€65 400",city:"Vilnius",mileage:"19 400 km",fuel:"Petrol",gearbox:"Automatic",power:"510 hp",color:"Skyscraper Grey",vin:"WBS...",status:"",   badges:["rise"],         firstSeen:"6 h ago",    updated:"price +€400" },
+  { id:7, model:"BMW X3 M40i",          year:2022,price:"€56 800",city:"Riga",   mileage:"24 000 km",fuel:"Petrol",gearbox:"Automatic",power:"387 hp",color:"Black Sapphire",vin:"WBA...",status:"new", badges:["new"],           firstSeen:"1 h ago",    updated:"—" },
+  { id:8, model:"BMW X3 xDrive30d M",   year:2020,price:"€38 500",city:"Tallinn",mileage:"96 000 km",fuel:"Diesel",gearbox:"Automatic",power:"286 hp",color:"Sophisto Grey",vin:"WBA...",status:"updated",badges:["updated","drop"],firstSeen:"3 h ago",   updated:"price −€2 500" },
+];
+
+const LOG_LINES = [
+  { t:"ok",  msg:"[10:42:18] Poll complete — 12 listings scraped (BMW X3 M 2020–22)" },
+  { t:"ok",  msg:"[10:42:17] Deterministic parser: 12/12 records parsed successfully" },
+  { t:"",    msg:"[10:41:21] SSE client connected (id: client_7)" },
+  { t:"warn",msg:"[10:40:55] Claude fallback inactive — no API key set" },
+  { t:"ok",  msg:"[10:40:12] Poll complete — 8 listings scraped (Audi A6 2021+)" },
+  { t:"",    msg:"[10:39:01] Server started on :3100" },
+];
+
+const PRESETS = [
+  { label: "BMW X3 M", url: "https://autoplius.lt/skelbimai/naudoti-automobiliai/bmw/x3-m" },
+  { label: "Audi A6",  url: "https://autoplius.lt/skelbimai/naudoti-automobiliai/audi/a6" },
+  { label: "Mercedes E", url: "https://autoplius.lt/skelbimai/naudoti-automobiliai/mercedes-benz/e-klase" },
+];
+
+function AddMonitorModal({ open, onClose, onAdd }) {
+  const [name, setName]         = React.useState("");
+  const [url, setUrl]           = React.useState("");
+  const [interval, setInterval] = React.useState(60);
+  const [newWin, setNewWin]     = React.useState(120);
+  const [done, setDone]         = React.useState(false);
+
+  const reset = () => { setName(""); setUrl(""); setInterval(60); setNewWin(120); setDone(false); };
+
+  const handleClose = () => { reset(); onClose(); };
+
+  const handleAdd = () => {
+    if (!url) return;
+    setDone(true);
+    setTimeout(() => { onAdd({ name: name || url, url, interval, newBadge: newWin }); handleClose(); }, 1100);
+  };
+
+  const applyPreset = (p) => {
+    setUrl(p.url);
+    if (!name) setName(p.label);
+  };
+
+  return (
+    <div className={`modal-backdrop${open ? " open" : ""}`} onClick={handleClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <span className="modal-title">Add monitor</span>
+          <button className="drawer-close" onClick={handleClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          {done ? (
+            <div className="success-flash">✓ Monitor added — polling will start shortly</div>
+          ) : (
+            <>
+              <div className="field">
+                <label>Monitor name <span style={{color:"var(--muted)",fontWeight:400}}>(optional)</span></label>
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. BMW X3 M 2020–22" />
+              </div>
+              <div className="field">
+                <label>Search URL</label>
+                <input value={url} onChange={e => setUrl(e.target.value)}
+                  placeholder="https://autoplius.lt/skelbimai/naudoti-automobiliai/..." />
+                <div className="field-hint">Paste the full Autoplius search results URL with your filters applied.</div>
+                <div className="preset-chips">
+                  {PRESETS.map(p => (
+                    <button key={p.label} className="preset-chip" onClick={() => applyPreset(p)}>{p.label}</button>
+                  ))}
+                </div>
+              </div>
+              {url && (
+                <div>
+                  <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.07em",color:"var(--muted)",marginBottom:4}}>URL preview</div>
+                  <div className="url-preview">{url}</div>
+                </div>
+              )}
+              <div className="field-row">
+                <div className="field">
+                  <label>Poll interval (s)</label>
+                  <input type="number" min="15" value={interval} onChange={e => setInterval(+e.target.value)} />
+                  <div className="field-hint">Min 15 s. Recommended: 60–180 s.</div>
+                </div>
+                <div className="field">
+                  <label>NEW window (min)</label>
+                  <input type="number" min="1" value={newWin} onChange={e => setNewWin(+e.target.value)} />
+                  <div className="field-hint">How long a listing shows NEW badge.</div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        {!done && (
+          <div className="modal-footer">
+            <button className="modal-cancel-btn" onClick={handleClose}>Cancel</button>
+            <button className="modal-add-btn" onClick={handleAdd} disabled={!url}>Add monitor</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── COMPONENTS ─────────────────────────────────────────────── */
+function Badge({ type }) {
+  const map = {
+    new:     ["badge badge-new",     "NEW"],
+    updated: ["badge badge-updated", "UPDATED"],
+    stale:   ["badge badge-stale",   "STALE"],
+    drop:    ["badge badge-drop",    "↓ PRICE"],
+    rise:    ["badge badge-rise",    "↑ PRICE"],
+  };
+  if (!map[type]) return null;
+  const [cls, label] = map[type];
+  return <span className={cls}>{label}</span>;
+}
+
+function ListingRow({ listing, idx }) {
+  const [open, setOpen] = React.useState(false);
+  const cls = ["listing-row", listing.status === "new" ? "is-new" : listing.status === "updated" ? "is-updated" : listing.status === "stale" ? "is-stale" : ""].filter(Boolean).join(" ");
+
+  const toggle = (e) => { e.stopPropagation(); setOpen(o => !o); };
+
+  const inner = (
+    <>
+      <div className="row-indicator"></div>
+      <div className="row-model">
+        <a className="model-name" href="#" onClick={e => e.preventDefault()}>{listing.model}</a>
+        <div className="model-sub">{listing.year} · {listing.mileage} · {listing.fuel}</div>
+      </div>
+      <div className="row-badges">
+        {listing.badges.map(b => <Badge key={b} type={b} />)}
+      </div>
+      <div className="row-cell price">{listing.price}</div>
+      <div className="row-cell city">{listing.city}</div>
+      <div className="row-meta">{listing.firstSeen}</div>
+      <button className={`expand-toggle${open ? " open" : ""}`} onClick={toggle} aria-label="Toggle details">▾</button>
+    </>
+  );
+
+  return (
+    <div className={`${cls}${open ? " expanded" : ""}`} style={{ animationDelay: `${idx * 35}ms` }} onClick={() => setOpen(o => !o)}>
+      {open ? (
+        <div className="listing-expanded-inner">
+          <div className="expand-top">{inner}</div>
+          <div className="detail-grid">
+            {[
+              ["Year", listing.year],
+              ["Mileage", listing.mileage],
+              ["Fuel", listing.fuel],
+              ["Gearbox", listing.gearbox],
+              ["Power", listing.power],
+              ["Color", listing.color],
+              ["City", listing.city],
+              ["First seen", listing.firstSeen],
+              ["Change", listing.updated || "—"],
+            ].map(([l, v]) => (
+              <div className="detail-item" key={l}>
+                <span className="detail-lbl">{l}</span>
+                <span className={`detail-val${l === "Price" ? " hi" : ""}`}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <a className="view-link" href="#" onClick={e => e.preventDefault()}>View on Autoplius ↗</a>
+        </div>
+      ) : inner}
+    </div>
+  );
+}
+
+function ClaudeToggle() {
+  const [enabled, setEnabled] = React.useState(false);
+  return (
+    <button
+      onClick={() => setEnabled(e => !e)}
+      style={{
+        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "10px 12px",
+        background: enabled ? "var(--accent-dim)" : "var(--bg)",
+        border: `1px solid ${enabled ? "color-mix(in srgb, var(--accent) 40%, var(--border))" : "var(--border)"}`,
+        borderRadius: 8, cursor: "pointer",
+        transition: "background 200ms ease, border-color 200ms ease",
+      }}
+    >
+      <span style={{display:"flex",alignItems:"center",gap:8}}>
+        <span style={{fontSize:13,fontFamily:"var(--mono)",color: enabled ? "var(--accent)" : "var(--muted2)",fontWeight:600}}>
+          Claude fallback
+        </span>
+        <span style={{fontSize:10,padding:"2px 7px",borderRadius:99,
+          background: enabled ? "var(--accent-dim)" : "var(--border)",
+          color: enabled ? "var(--accent)" : "var(--muted)",
+          border: `1px solid ${enabled ? "color-mix(in srgb,var(--accent) 30%,transparent)" : "transparent"}`,
+          fontWeight:700,letterSpacing:"0.04em"
+        }}>
+          {enabled ? "ON" : "OFF"}
+        </span>
+      </span>
+      <span style={{
+        width:36, height:20, borderRadius:99, position:"relative",
+        background: enabled ? "var(--accent)" : "var(--border2)",
+        transition: "background 200ms ease", flexShrink:0,
+        display:"flex", alignItems:"center",
+      }}>
+        <span style={{
+          position:"absolute", left: enabled ? 18 : 2,
+          width:16, height:16, borderRadius:50, background:"var(--text)",
+          transition:"left 200ms cubic-bezier(.4,0,.2,1)",
+          boxShadow:"0 1px 4px rgba(0,0,0,0.4)",
+        }}></span>
+      </span>
+    </button>
+  );
+}
+
+function SettingsDrawer({ open, monitor, onClose }) {
+  return (
+    <>
+      <div className={`drawer-overlay${open ? " open" : ""}`} onClick={onClose}></div>
+      <aside className={`settings-drawer${open ? " open" : ""}`}>
+        <div className="drawer-head">
+          <span className="drawer-title">Monitor settings</span>
+          <button className="drawer-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="drawer-body">
+          <div>
+            <div className="drawer-section-title">Monitor</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <div className="field"><label>Name</label><input defaultValue={monitor?.name || ""} /></div>
+              <div className="field"><label>Search URL</label><input defaultValue={monitor ? `https://${monitor.url}` : ""} /></div>
+              <div className="field-row">
+                <div className="field"><label>Poll interval (s)</label><input type="number" defaultValue={monitor?.interval || 60} /></div>
+                <div className="field"><label>NEW window (min)</label><input type="number" defaultValue={monitor?.newBadge || 120} /></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div className="drawer-section-title">Claude parser</div>
+            <ClaudeToggle />
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:10}}>
+              <div className="field"><label>API key</label><input type="password" placeholder="sk-ant-..." /></div>
+              <div className="field"><label>Model</label><input defaultValue="claude-3-5-haiku-latest" /></div>
+              <div className="field-row">
+                <div className="field"><label>Reasoning</label><select><option>low</option><option>balanced</option><option>high</option></select></div>
+                <div className="field"><label>Temperature</label><input type="number" step="0.01" defaultValue="0.2" /></div>
+              </div>
+            </div>
+          </div>
+          <button className="drawer-save-btn">Save settings</button>
+          <button className="drawer-danger-btn">Delete monitor</button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function DebugStrip({ visible, onToggle }) {
+  return (
+    <div className="debug-strip">
+      <div className="debug-header" onClick={onToggle}>
+        <span className="debug-header-title">Debug log</span>
+        <span className={`debug-chevron${visible ? " open" : ""}`}>▲</span>
+        <div className="debug-actions" onClick={e => e.stopPropagation()}>
+          <button className="debug-btn">Pause</button>
+          <button className="debug-btn">Clear</button>
+        </div>
+      </div>
+      {visible && (
+        <div className="debug-feed">
+          {LOG_LINES.map((l, i) => (
+            <div key={i} className={`log-line${l.t ? " " + l.t : ""}`}>{l.msg}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── APP ────────────────────────────────────────────────────── */
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  const [monitors, setMonitors] = React.useState(MONITORS);
+  const [activeMonitor, setActiveMonitor] = React.useState(0);
+  const [segment, setSegment] = React.useState("all");
+  const [sort, setSort] = React.useState("newest");
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [debugOpen, setDebugOpen] = React.useState(TWEAK_DEFAULTS.showDebug);
+  const [polling, setPolling] = React.useState(TWEAK_DEFAULTS.pollingActive);
+
+  const handleAddMonitor = (m) => {
+    const newMon = { id: Date.now(), name: m.name, url: m.url.replace("https://",""), interval: m.interval, newBadge: m.newBadge, total: 0, newCount: 0 };
+    setMonitors(prev => [...prev, newMon]);
+    setActiveMonitor(monitors.length);
+  };
+
+  React.useEffect(() => {
+    document.documentElement.setAttribute("data-theme", tweaks.theme);
+  }, [tweaks.theme]);
+
+  const mon = monitors[activeMonitor] || monitors[0];
+
+  const filtered = LISTINGS.filter(l => {
+    if (segment === "new") return l.status === "new";
+    if (segment === "updated") return l.status === "updated";
+    if (segment === "stale") return l.status === "stale";
+    return true;
+  });
+
+  const newCount = LISTINGS.filter(l => l.status === "new").length;
+  const updatedCount = LISTINGS.filter(l => l.status === "updated").length;
+
+  return (
+    <div style={{minHeight:"100vh", paddingBottom: debugOpen ? 200 : 40}}>
+      {/* TOP BAR */}
+      <header className="topbar">
+        <div className="topbar-brand">
+          <div className="brand-icon">C</div>
+          <span className="brand-name">CarMon</span>
+        </div>
+        <nav className="monitor-tabs">
+          {monitors.map((m, i) => (
+            <button key={m.id} className={`tab${activeMonitor === i ? " active" : ""}`}
+              onClick={() => { setActiveMonitor(i); setSegment("all"); }}>
+              {m.name}
+              <span className="tab-count">{m.total}</span>
+            </button>
+          ))}
+          <button className="tab-add" title="Add monitor" onClick={() => setAddOpen(true)}>+</button>
+        </nav>
+        <div className="topbar-end">
+          <div className="poll-pill">
+            <div className={`poll-dot${polling ? " active" : ""}`}></div>
+            {polling ? "Polling" : "Idle"}
+          </div>
+          <button className={`icon-btn${settingsOpen ? " active" : ""}`}
+            onClick={() => setSettingsOpen(o => !o)} title="Monitor settings">⚙</button>
+        </div>
+      </header>
+
+      {/* MONITOR BAR */}
+      <div className="monitor-bar">
+        <span className="monitor-bar-url">
+          <a href="#" onClick={e => e.preventDefault()}>https://{mon.url}</a>
+        </span>
+        <div className="monitor-bar-meta">
+          <div className="meta-item">
+            <span className="meta-label">Interval</span>
+            <span className="meta-value">{mon.interval}s</span>
+          </div>
+          <div className="meta-item">
+            <span className="meta-label">Last poll</span>
+            <span className="meta-value">42s ago</span>
+          </div>
+          <div className="meta-item">
+            <span className="meta-label">Mode</span>
+            <span className="meta-value">Deterministic</span>
+          </div>
+          <button className="poll-btn" onClick={() => setPolling(p => !p)}>
+            {polling ? "⏸ Pause" : "▶ Poll now"}
+          </button>
+        </div>
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div className="content">
+        {/* STAT CARDS */}
+        <div className="status-strip">
+          <div className="stat-card">
+            <span className="stat-label">Total listings</span>
+            <span className="stat-value accent">{mon.total}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-label">New</span>
+            <span className="stat-value green">{mon.newCount}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-label">Updated</span>
+            <span className="stat-value">{updatedCount}</span>
+          </div>
+          <div className="stat-card">
+            <span className="stat-label">Next poll in</span>
+            <span className="stat-value" style={{fontSize:16}}>00:18</span>
+          </div>
+        </div>
+
+        {/* LISTINGS TOOLBAR */}
+        <div className="listings-toolbar">
+          <div className="segments">
+            {[["all","All"],["new","New"],["updated","Updated"],["stale","Stale"]].map(([v,l]) => (
+              <button key={v} className={`seg-btn${segment === v ? " active" : ""}`}
+                onClick={() => setSegment(v)}>{l}</button>
+            ))}
+          </div>
+          <div className="sort-wrap">
+            Sort by
+            <select className="sort-select" value={sort} onChange={e => setSort(e.target.value)}>
+              <option value="newest">Newest first</option>
+              <option value="price_asc">Price: low → high</option>
+              <option value="price_desc">Price: high → low</option>
+              <option value="year_desc">Year: newest</option>
+              <option value="model_asc">Model A–Z</option>
+            </select>
+          </div>
+          <div className="results-count">{filtered.length} results</div>
+        </div>
+
+        {/* LISTING FEED */}
+        <div className="listing-feed">
+          {filtered.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">◎</div>
+              <p>No listings in this segment.</p>
+            </div>
+          ) : filtered.map((l, i) => <ListingRow key={l.id} listing={l} idx={i} />)}
+        </div>
+      </div>
+
+      {/* ADD MONITOR MODAL */}
+      <AddMonitorModal open={addOpen} onClose={() => setAddOpen(false)} onAdd={handleAddMonitor} />
+
+      {/* SETTINGS DRAWER */}
+      <SettingsDrawer open={settingsOpen} monitor={mon} onClose={() => setSettingsOpen(false)} />
+
+      {/* DEBUG LOG */}
+      <DebugStrip visible={debugOpen} onToggle={() => setDebugOpen(o => !o)} />
+
+      {/* TWEAKS PANEL */}
+      <TweaksPanel>
+        <TweakSection title="Theme">
+          <TweakRadio id="theme" label="Accent" options={[
+            { value: "ghost", label: "Ghost" },
+            { value: "ember", label: "Ember" },
+            { value: "pulse", label: "Pulse" },
+          ]} />
+        </TweakSection>
+        <TweakSection title="Behavior">
+          <TweakToggle id="pollingActive" label="Polling active"
+            onChange={v => setPolling(v)} />
+          <TweakToggle id="showDebug" label="Show debug log"
+            onChange={v => setDebugOpen(v)} />
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

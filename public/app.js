@@ -1,6 +1,12 @@
 const els = {
-  monitorList: document.getElementById("monitor-list"),
-  monitorsCount: document.getElementById("monitors-count"),
+  dashboardThemeSelect: document.getElementById("dashboard-theme"),
+  topbarPollDot: document.getElementById("topbar-poll-dot"),
+  topbarPollState: document.getElementById("topbar-poll-state"),
+  topbarListingCount: document.getElementById("topbar-listing-count"),
+  monitorTabs: document.getElementById("monitor-tabs"),
+  monitorAddModal: document.getElementById("monitor-add-modal"),
+  monitorAddCloseBtn: document.getElementById("monitor-add-close-btn"),
+  monitorAddCancelBtn: document.getElementById("monitor-add-cancel-btn"),
   claudeToggleBtn: document.getElementById("claude-toggle-btn"),
   claudeStatusText: document.getElementById("claude-status-text"),
   claudeSettingsForm: document.getElementById("claude-settings-form"),
@@ -40,13 +46,18 @@ const els = {
   statusMessage: document.getElementById("status-message"),
   listingSegments: document.getElementById("listing-segments"),
   listingSortBy: document.getElementById("listing-sort"),
+  listingsStatsStrip: document.getElementById("listings-stats-strip"),
+  listingColumnsHead: document.querySelector(".listing-columns-head"),
   segmentSummary: document.getElementById("segment-summary"),
   listingsCount: document.getElementById("listings-count"),
   listingFeed: document.getElementById("listing-feed"),
   debugLogFeed: document.getElementById("debug-log-feed"),
   debugLogClearBtn: document.getElementById("debug-log-clear-btn"),
   debugLogPauseBtn: document.getElementById("debug-log-pause-btn"),
-  monitorPanelToggleBtn: document.getElementById("monitor-panel-toggle-btn"),
+  globalSettingsToggleBtn: document.getElementById("global-settings-toggle-btn"),
+  globalSettingsCloseBtn: document.getElementById("global-settings-close-btn"),
+  globalSettingsPanel: document.getElementById("global-settings-panel"),
+  globalSettingsBackdrop: document.getElementById("global-settings-backdrop"),
 };
 
 const actionState = {
@@ -65,8 +76,10 @@ const appState = {
   expandedListingIds: new Set(),
   expandedListingMonitorId: null,
   debugLogPaused: false,
-  mobilePanelCollapsed: true,
   monitorSettingsCollapsed: true,
+  monitorAddModalOpen: false,
+  globalSettingsOpen: false,
+  dashboardTheme: "ghost",
 };
 
 const DEBUG_LOG_LIMIT = 160;
@@ -89,6 +102,26 @@ function sanitizeDebugPayload(value) {
     output[key] = sanitizeDebugPayload(raw);
   }
   return output;
+}
+
+function sanitizeThemeName(rawValue) {
+  const value = String(rawValue || "").trim().toLowerCase();
+  if (value === "ember" || value === "pulse" || value === "ghost") {
+    return value;
+  }
+  return "ghost";
+}
+
+function applyDashboardTheme(themeName) {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const normalizedTheme = sanitizeThemeName(themeName || appState.dashboardTheme);
+  appState.dashboardTheme = normalizedTheme;
+  document.body.dataset.theme = normalizedTheme;
+  if (els.dashboardThemeSelect && els.dashboardThemeSelect.value !== normalizedTheme) {
+    els.dashboardThemeSelect.value = normalizedTheme;
+  }
 }
 
 function pushDebugLog(level, message, details) {
@@ -116,27 +149,56 @@ function isSmartphoneViewport() {
   return window.matchMedia("(max-width: 760px)").matches;
 }
 
-function applyMobilePanelState() {
-  if (!els.monitorList) {
+function focusMonitorAddInput() {
+  if (!els.addMonitorName) {
     return;
   }
-  const mobile = isSmartphoneViewport();
-  if (!mobile) {
-    document.body.classList.remove("mobile-panel-collapsed");
-    if (els.monitorPanelToggleBtn) {
-      els.monitorPanelToggleBtn.setAttribute("aria-expanded", "true");
-      els.monitorPanelToggleBtn.textContent = "Hide settings";
-    }
+  setTimeout(() => {
+    els.addMonitorName.focus();
+  }, 0);
+}
+
+function applyOverlayBodyState() {
+  if (typeof document === "undefined") {
     return;
   }
-  document.body.classList.toggle("mobile-panel-collapsed", appState.mobilePanelCollapsed);
-  if (els.monitorPanelToggleBtn) {
-    const expanded = !appState.mobilePanelCollapsed;
-    els.monitorPanelToggleBtn.setAttribute("aria-expanded", String(expanded));
-    els.monitorPanelToggleBtn.textContent = expanded
-      ? "Hide monitor settings"
-      : "Show monitor settings";
+  document.body.classList.toggle(
+    "overlay-open",
+    Boolean(appState.monitorAddModalOpen || appState.globalSettingsOpen)
+  );
+}
+
+function applyMonitorAddModalState() {
+  if (!els.monitorAddModal) {
+    return;
   }
+  const open = Boolean(appState.monitorAddModalOpen);
+  els.monitorAddModal.hidden = !open;
+  els.monitorAddModal.setAttribute("aria-hidden", String(!open));
+  applyOverlayBodyState();
+  if (open) {
+    focusMonitorAddInput();
+  }
+}
+
+function applyGlobalSettingsPanelState() {
+  const panel = els.globalSettingsPanel;
+  const backdrop = els.globalSettingsBackdrop;
+  const toggle = els.globalSettingsToggleBtn;
+  const open = Boolean(appState.globalSettingsOpen);
+  if (panel) {
+    panel.setAttribute("aria-hidden", String(!open));
+    panel.classList.toggle("open", open);
+  }
+  if (backdrop) {
+    backdrop.setAttribute("aria-hidden", String(!open));
+    backdrop.classList.toggle("open", open);
+  }
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.classList.toggle("active", open);
+  }
+  applyOverlayBodyState();
 }
 
 function applyMonitorSettingsPanelState() {
@@ -188,6 +250,37 @@ function formatCompactResultLabel(status, message) {
     return rawMessage;
   }
   return `${rawMessage.slice(0, 39)}…`;
+}
+
+function renderListingsStatsStrip(activeMonitor, allListings, filteredListings) {
+  if (!els.listingsStatsStrip) {
+    return;
+  }
+  const total = Number(allListings?.length || 0);
+  const shown = Number(filteredListings?.length || 0);
+  const newCount = Number(activeMonitor?.newListings || 0);
+  const updatedCount = Number((allListings || []).reduce(
+    (count, listing) => (isRecentlyUpdated(listing) ? count + 1 : count),
+    0
+  ));
+  const staleCount = Number(activeMonitor?.staleListings || 0);
+  const chips = [
+    { key: "shown", label: "Shown", value: shown },
+    { key: "total", label: "Total", value: total },
+    { key: "new", label: "New", value: newCount },
+    { key: "updated", label: "Updated", value: updatedCount },
+    { key: "stale", label: "Stale", value: staleCount },
+  ];
+  els.listingsStatsStrip.innerHTML = chips
+    .map(
+      (chip) => `
+      <span class="listings-stat-chip ${chip.key}">
+        <span class="chip-dot" aria-hidden="true"></span>
+        <span class="chip-label">${chip.label}</span>
+        <strong class="chip-value">${chip.value}</strong>
+      </span>`
+    )
+    .join("");
 }
 
 function setButtonLoading(button, isLoading, loadingLabel) {
@@ -701,24 +794,31 @@ function buildListingDetails(listing, model, year, price, locationLabel) {
 function monitorCard(monitor, isActive) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `monitor-item${isActive ? " active" : ""}`;
+  button.className = `monitor-tab${isActive ? " active" : ""}`;
   button.dataset.monitorId = monitor.id;
-
-  const pollingLabel = monitor.pollingInProgress ? "Polling..." : "Idle";
+  button.setAttribute("aria-selected", String(isActive));
+  const monitorName = String(monitor.name || "Monitor");
+  const pollingIndicator = monitor.pollingInProgress ? '<span class="monitor-tab-dot polling" aria-hidden="true"></span>' : "";
   button.innerHTML = `
-    <div class="name-row">
-      <strong>${monitor.name}</strong>
-      <span class="count-pill">${monitor.newListings} new</span>
-    </div>
-    <div class="monitor-meta">
-      <span>${monitor.totalListings} listings</span>
-      <span>${Math.round((monitor.pollIntervalMs || 0) / 1000)}s</span>
-      <span>${pollingLabel}</span>
-    </div>
-    <div class="monitor-meta">
-      <span>${formatDateTime(monitor.lastPoll?.at)}</span>
-      <span>${monitor.lastPoll?.status || "never"}</span>
-    </div>
+    <span class="monitor-tab-name">${monitorName}</span>
+    <span class="monitor-tab-meta">
+      ${pollingIndicator}
+      <span>${monitor.newListings || 0} new</span>
+      <span>${monitor.totalListings || 0} total</span>
+    </span>
+  `;
+  return button;
+}
+
+function monitorAddTab() {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "monitor-tab monitor-tab-add";
+  button.dataset.action = "add-monitor";
+  button.setAttribute("aria-label", "Add monitor");
+  button.innerHTML = `
+    <span class="monitor-tab-add-icon" aria-hidden="true">+</span>
+    <span class="monitor-tab-add-text">New monitor</span>
   `;
   return button;
 }
@@ -738,6 +838,10 @@ function listingCard(listing) {
 
   const compactRow = document.createElement("div");
   compactRow.className = "listing-main";
+
+  const indicator = document.createElement("span");
+  indicator.className = "listing-indicator";
+  indicator.setAttribute("aria-hidden", "true");
 
   const modelCell = document.createElement("div");
   modelCell.className = "listing-cell model";
@@ -806,7 +910,7 @@ function listingCard(listing) {
 
   const topRow = document.createElement("div");
   topRow.className = "listing-top-row";
-  topRow.append(compactRow, rowTail);
+  topRow.append(indicator, compactRow, rowTail);
 
   wrapper.append(topRow);
   if (expanded) {
@@ -817,21 +921,16 @@ function listingCard(listing) {
 
 function renderMonitorList(payload) {
   const monitors = payload.monitors || [];
-  els.monitorsCount.textContent = String(monitors.length);
-  els.monitorList.innerHTML = "";
-  applyMobilePanelState();
-  if (monitors.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "empty-state";
-    empty.textContent = "No monitors configured.";
-    els.monitorList.appendChild(empty);
+  if (!els.monitorTabs) {
     return;
   }
+  els.monitorTabs.innerHTML = "";
 
   monitors.forEach((monitor) => {
     const active = monitor.id === payload.activeMonitorId;
-    els.monitorList.appendChild(monitorCard(monitor, active));
+    els.monitorTabs.appendChild(monitorCard(monitor, active));
   });
+  els.monitorTabs.appendChild(monitorAddTab());
 }
 
 function renderActiveMonitor(payload) {
@@ -847,6 +946,15 @@ function renderActiveMonitor(payload) {
     els.statusLastPoll.textContent = "-";
     els.statusSource.textContent = "-";
     els.statusMessage.textContent = "-";
+    if (els.topbarListingCount) {
+      els.topbarListingCount.textContent = "0";
+    }
+    if (els.topbarPollState) {
+      els.topbarPollState.textContent = "Idle";
+    }
+    if (els.topbarPollDot) {
+      els.topbarPollDot.classList.remove("active");
+    }
     if (els.activeMonitorSummaryTotal) {
       els.activeMonitorSummaryTotal.textContent = "0";
     }
@@ -858,6 +966,12 @@ function renderActiveMonitor(payload) {
     }
     if (els.activeMonitorCollapsedSummary) {
       els.activeMonitorCollapsedSummary.hidden = true;
+    }
+    if (els.listingsStatsStrip) {
+      els.listingsStatsStrip.innerHTML = "";
+    }
+    if (els.listingColumnsHead) {
+      els.listingColumnsHead.hidden = true;
     }
     appState.monitorSettingsCollapsed = true;
     applyMonitorSettingsPanelState();
@@ -874,12 +988,14 @@ function renderActiveMonitor(payload) {
   els.activeNewBadge.value = activeMonitor.newBadgeMinutes || 120;
 
   const pollStatus = activeMonitor.lastPoll || {};
-  const pollLabel = `${formatDateTime(pollStatus.at)} (${pollStatus.status || "unknown"})`;
   els.statusLastPoll.textContent = pollStatus.at ? formatDateTime(pollStatus.at) : "-";
   els.statusSource.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
   els.statusMessage.textContent = formatCompactResultLabel(pollStatus.status, pollStatus.message);
 
   const allListings = activeMonitor.listings || [];
+  if (els.topbarListingCount) {
+    els.topbarListingCount.textContent = String(allListings.length);
+  }
   const updatedCount = allListings.reduce(
     (count, listing) => (isRecentlyUpdated(listing) ? count + 1 : count),
     0
@@ -903,6 +1019,12 @@ function renderActiveMonitor(payload) {
   els.pollingText.textContent = pollingNow
     ? `Polling ${activeMonitor.name}...`
     : "Idle - waiting for next poll";
+  if (els.topbarPollState) {
+    els.topbarPollState.textContent = pollingNow ? "Polling" : "Idle";
+  }
+  if (els.topbarPollDot) {
+    els.topbarPollDot.classList.toggle("active", pollingNow);
+  }
   applyMonitorSettingsPanelState();
   if (appState.expandedListingMonitorId !== activeMonitor.id) {
     appState.expandedListingIds.clear();
@@ -918,6 +1040,10 @@ function renderActiveMonitor(payload) {
     buildFilteredListings(activeMonitor, appState.activeSegment),
     appState.sortBy
   );
+  renderListingsStatsStrip(activeMonitor, allListings, filteredListings);
+  if (els.listingColumnsHead) {
+    els.listingColumnsHead.hidden = filteredListings.length === 0;
+  }
   els.listingsCount.textContent = String(filteredListings.length);
   if (els.listingSortBy) {
     els.listingSortBy.value = appState.sortBy;
@@ -1027,24 +1153,32 @@ async function refreshDashboard() {
   renderDashboard(payload);
 }
 
-els.monitorList.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-monitor-id]");
-  if (!button) {
-    return;
-  }
-  const monitorId = button.dataset.monitorId;
-  if (!monitorId || monitorId === appState.dashboard?.activeMonitorId) {
-    return;
-  }
-  try {
-    pushDebugLog("info", "Switching active monitor", { monitorId });
-    const payload = await callJson(`/api/monitors/${monitorId}/activate`, "POST");
-    renderDashboard(payload);
-  } catch (error) {
-    pushDebugLog("error", "Failed to activate monitor", { monitorId, error: error.message });
-    alert(`Failed to activate monitor: ${error.message}`);
-  }
-});
+if (els.monitorTabs) {
+  els.monitorTabs.addEventListener("click", async (event) => {
+    const addButton = event.target.closest("[data-action='add-monitor']");
+    if (addButton) {
+      appState.monitorAddModalOpen = true;
+      applyMonitorAddModalState();
+      return;
+    }
+    const button = event.target.closest("[data-monitor-id]");
+    if (!button) {
+      return;
+    }
+    const monitorId = button.dataset.monitorId;
+    if (!monitorId || monitorId === appState.dashboard?.activeMonitorId) {
+      return;
+    }
+    try {
+      pushDebugLog("info", "Switching active monitor", { monitorId });
+      const payload = await callJson(`/api/monitors/${monitorId}/activate`, "POST");
+      renderDashboard(payload);
+    } catch (error) {
+      pushDebugLog("error", "Failed to activate monitor", { monitorId, error: error.message });
+      alert(`Failed to activate monitor: ${error.message}`);
+    }
+  });
+}
 
 els.addMonitorForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1065,6 +1199,8 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
     els.addMonitorForm.reset();
     els.addPollInterval.value = "60";
     els.addNewBadge.value = "120";
+    appState.monitorAddModalOpen = false;
+    applyMonitorAddModalState();
     renderDashboard(payload);
   } catch (error) {
     pushDebugLog("error", "Failed to add monitor", { error: error.message });
@@ -1254,13 +1390,46 @@ if (els.listingSortBy) {
   });
 }
 
-if (els.monitorPanelToggleBtn) {
-  els.monitorPanelToggleBtn.addEventListener("click", () => {
-    if (!isSmartphoneViewport()) {
-      return;
-    }
-    appState.mobilePanelCollapsed = !appState.mobilePanelCollapsed;
-    applyMobilePanelState();
+if (els.dashboardThemeSelect) {
+  els.dashboardThemeSelect.addEventListener("change", (event) => {
+    const nextTheme = sanitizeThemeName(event.target.value);
+    applyDashboardTheme(nextTheme);
+    pushDebugLog("info", "Dashboard theme changed", { theme: nextTheme });
+  });
+}
+
+if (els.globalSettingsToggleBtn) {
+  els.globalSettingsToggleBtn.addEventListener("click", () => {
+    appState.globalSettingsOpen = !appState.globalSettingsOpen;
+    applyGlobalSettingsPanelState();
+  });
+}
+
+if (els.globalSettingsCloseBtn) {
+  els.globalSettingsCloseBtn.addEventListener("click", () => {
+    appState.globalSettingsOpen = false;
+    applyGlobalSettingsPanelState();
+  });
+}
+
+if (els.globalSettingsBackdrop) {
+  els.globalSettingsBackdrop.addEventListener("click", () => {
+    appState.globalSettingsOpen = false;
+    applyGlobalSettingsPanelState();
+  });
+}
+
+if (els.monitorAddCloseBtn) {
+  els.monitorAddCloseBtn.addEventListener("click", () => {
+    appState.monitorAddModalOpen = false;
+    applyMonitorAddModalState();
+  });
+}
+
+if (els.monitorAddCancelBtn) {
+  els.monitorAddCancelBtn.addEventListener("click", () => {
+    appState.monitorAddModalOpen = false;
+    applyMonitorAddModalState();
   });
 }
 
@@ -1292,12 +1461,42 @@ if (els.debugLogPauseBtn) {
   });
 }
 
+if (els.monitorAddModal) {
+  els.monitorAddModal.addEventListener("click", (event) => {
+    if (event.target === els.monitorAddModal) {
+      appState.monitorAddModalOpen = false;
+      applyMonitorAddModalState();
+    }
+  });
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+    if (appState.monitorAddModalOpen) {
+      appState.monitorAddModalOpen = false;
+      applyMonitorAddModalState();
+      return;
+    }
+    if (appState.globalSettingsOpen) {
+      appState.globalSettingsOpen = false;
+      applyGlobalSettingsPanelState();
+    }
+  });
+}
+
 els.listingFeed.addEventListener("click", (event) => {
+  const interactiveTarget = event.target.closest(
+    "a, button, input, select, textarea, label, [role='button'], [data-ignore-card-toggle='true']"
+  );
   const toggleButton = event.target.closest(".listing-expand-btn");
-  if (!toggleButton) {
+  if (interactiveTarget && !toggleButton) {
     return;
   }
-  const listingId = toggleButton.dataset.listingId;
+  const listingRow = event.target.closest(".listing");
+  const listingId = toggleButton?.dataset.listingId || listingRow?.dataset.listingId;
   if (!listingId) {
     return;
   }
@@ -1334,13 +1533,9 @@ refreshDashboard().catch((error) => {
   pushDebugLog("error", "Initial dashboard load failed", { error: error.message });
   alert(`Failed to load dashboard: ${error.message}`);
 });
-if (typeof window !== "undefined") {
-  appState.mobilePanelCollapsed = isSmartphoneViewport();
-}
-if (typeof window !== "undefined") {
-  window.addEventListener("resize", applyMobilePanelState);
-}
+applyDashboardTheme(appState.dashboardTheme);
 pushDebugLog("info", "Initial UI ready.");
-applyMobilePanelState();
 applyMonitorSettingsPanelState();
+applyMonitorAddModalState();
+applyGlobalSettingsPanelState();
 connectSse();
