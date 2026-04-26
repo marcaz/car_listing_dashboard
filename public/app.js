@@ -258,8 +258,20 @@ function applyActiveMonitorPollStatusDisplay() {
     return;
   }
 
+  claudeStateInline.classList.remove(
+    "status-item-mode-on",
+    "status-item-mode-off",
+    "status-item-mode-unavailable"
+  );
   claudeStateInline.innerHTML = "";
   const collapsedMode = formatCollapsedClaudeModeLabel(settings);
+  if (collapsedMode.tone === "on") {
+    claudeStateInline.classList.add("status-item-mode-on");
+  } else if (collapsedMode.tone === "off") {
+    claudeStateInline.classList.add("status-item-mode-off");
+  } else {
+    claudeStateInline.classList.add("status-item-mode-unavailable");
+  }
   renderCollapsedModeToken(claudeStateInline, collapsedMode);
 }
 

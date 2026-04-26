@@ -488,21 +488,26 @@ input {
   text-overflow: ellipsis;
 }
 
-.monitor-runtime-row {
+.monitor-status-inline-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.52rem;
-  margin: 0 0 0.9rem;
+  margin: 0 0 0.5rem;
+  width: 100%;
+  min-width: 0;
 }
 
-.monitor-runtime-row .polling-indicator {
+.monitor-status-inline-row .polling-indicator {
   margin: 0;
+  flex: 0 0 auto;
 }
 
 .monitor-claude-indicator {
-  margin: 0 0 0.5rem;
   display: inline-flex;
   align-items: center;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .monitor-claude-indicator .mode-status-token {
@@ -1442,15 +1447,11 @@ dd {
     gap: 0.28rem;
   }
 
-  .monitor-runtime-row {
+  .monitor-status-inline-row {
     flex-direction: column;
     align-items: stretch;
     gap: 0.36rem;
     margin-bottom: 0.68rem;
-  }
-
-  .monitor-claude-indicator {
-    margin-bottom: 0.42rem;
   }
 
   .status-item {

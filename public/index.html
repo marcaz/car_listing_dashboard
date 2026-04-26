@@ -72,11 +72,22 @@
               </button>
             </div>
           </div>
-          <div class="monitor-claude-indicator-row">
-            <span id="monitor-claude-indicator" class="monitor-claude-indicator monitor-claude-indicator-unavailable">
-              <span class="monitor-claude-indicator-dot" aria-hidden="true"></span>
-              <span id="monitor-claude-indicator-text" class="monitor-claude-indicator-text">Claude unavailable</span>
-            </span>
+          <div class="monitor-status-inline-row" aria-label="Monitor status">
+            <div
+              id="polling-indicator"
+              class="polling-indicator idle"
+              role="status"
+              aria-live="polite"
+            >
+              <span class="poll-dot" aria-hidden="true"></span>
+              <span id="polling-text">Idle</span>
+            </div>
+            <span
+              id="monitor-claude-indicator"
+              class="monitor-claude-indicator"
+              role="status"
+              aria-live="polite"
+            ></span>
           </div>
           <div id="active-monitor-collapsed-summary" class="active-monitor-collapsed-summary" hidden>
             <span class="monitor-stat">
@@ -94,18 +105,6 @@
               <span class="monitor-stat-label">Updated</span>
               <strong id="active-monitor-updated-results">0</strong>
             </span>
-          </div>
-
-          <div class="monitor-runtime-row">
-            <div
-              id="polling-indicator"
-              class="polling-indicator idle"
-              role="status"
-              aria-live="polite"
-            >
-              <span class="poll-dot" aria-hidden="true"></span>
-              <span id="polling-text">Idle</span>
-            </div>
           </div>
 
           <dl id="active-monitor-status-grid" class="status-grid">
