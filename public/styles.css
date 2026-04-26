@@ -615,8 +615,18 @@ input {
   border: 0;
   background: transparent;
   color: var(--text);
+  color-scheme: dark;
   font-size: 0.66rem;
   padding: 0.08rem 0.1rem;
+}
+
+.topbar-theme-select:focus {
+  outline: none;
+}
+
+.topbar-theme-select option {
+  background: #0a111f;
+  color: var(--text);
 }
 
 .active-monitor-collapsed-summary {
@@ -959,7 +969,7 @@ dd {
   align-items: center;
   gap: 0.55rem;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .listing-cell {
@@ -1011,7 +1021,7 @@ dd {
   align-items: center;
   justify-content: flex-end;
   gap: 0.4rem;
-  flex-shrink: 1;
+  flex-shrink: 0;
   min-width: 0;
 }
 
