@@ -1397,11 +1397,15 @@ if (els.debugLogPauseBtn) {
 }
 
 els.listingFeed.addEventListener("click", (event) => {
+  const interactiveTarget = event.target.closest(
+    "a, button, input, select, textarea, label, [role='button'], [data-ignore-card-toggle='true']"
+  );
   const toggleButton = event.target.closest(".listing-expand-btn");
-  if (!toggleButton) {
+  if (interactiveTarget && !toggleButton) {
     return;
   }
-  const listingId = toggleButton.dataset.listingId;
+  const listingRow = event.target.closest(".listing");
+  const listingId = toggleButton?.dataset.listingId || listingRow?.dataset.listingId;
   if (!listingId) {
     return;
   }
