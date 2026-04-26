@@ -51,6 +51,8 @@ const actionState = {
 const appState = {
   dashboard: null,
   activeSegment: "all",
+  expandedListingIds: new Set(),
+  expandedListingMonitorId: null,
 };
 
 function setButtonLoading(button, isLoading, loadingLabel) {
@@ -250,6 +252,87 @@ function buildFilteredListings(activeMonitor, segment) {
   return listings;
 }
 
+function formatConfidence(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "-";
+  }
+  return `${Math.round(numeric * 100)}%`;
+}
+
+function makeDetailItem(label, value) {
+  const row = document.createElement("div");
+  row.className = "listing-detail-item";
+
+  const labelNode = document.createElement("span");
+  labelNode.className = "detail-label";
+  labelNode.textContent = label;
+
+  const valueNode = document.createElement("span");
+  valueNode.className = "detail-value";
+  valueNode.textContent = value || "-";
+
+  row.append(labelNode, valueNode);
+  return row;
+}
+
+function buildListingDetails(listing, model, year, price, locationLabel) {
+  const details = document.createElement("div");
+  details.className = "listing-details";
+
+  const mediaColumn = document.createElement("div");
+  mediaColumn.className = "listing-media";
+
+  if (listing.imageUrl) {
+    const thumb = document.createElement("img");
+    thumb.className = "listing-thumb";
+    thumb.src = listing.imageUrl;
+    thumb.alt = `${model} thumbnail`;
+    thumb.loading = "lazy";
+    thumb.decoding = "async";
+    thumb.width = 128;
+    thumb.height = 128;
+    mediaColumn.appendChild(thumb);
+  } else {
+    const placeholder = document.createElement("div");
+    placeholder.className = "listing-thumb placeholder";
+    placeholder.textContent = "No image";
+    mediaColumn.appendChild(placeholder);
+  }
+
+  const detailGrid = document.createElement("div");
+  detailGrid.className = "listing-detail-grid";
+  detailGrid.append(
+    makeDetailItem("Model", model),
+    makeDetailItem("Year", year || "-"),
+    makeDetailItem("Price", price || "-"),
+    makeDetailItem("Location", locationLabel),
+    makeDetailItem("Title", listing.title || "-"),
+    makeDetailItem("Updated text", listing.updatedText || "-"),
+    makeDetailItem("First seen", formatDateTime(listing.firstSeenAt)),
+    makeDetailItem("Last changed", formatDateTime(listing.lastChangedAt)),
+    makeDetailItem("Last seen", formatDateTime(listing.lastSeenAt)),
+    makeDetailItem("Parse confidence", formatConfidence(listing.parseConfidence))
+  );
+
+  const sourceRow = document.createElement("div");
+  sourceRow.className = "listing-source-row";
+  const sourceLink = document.createElement("a");
+  sourceLink.href = listing.url;
+  sourceLink.target = "_blank";
+  sourceLink.rel = "noopener noreferrer";
+  sourceLink.textContent = "Open full listing";
+  sourceLink.className = "source-link";
+  sourceRow.appendChild(sourceLink);
+
+  const contentColumn = document.createElement("div");
+  contentColumn.className = "listing-content";
+  contentColumn.append(detailGrid, sourceRow);
+
+  details.append(mediaColumn, contentColumn);
+  return details;
+}
+
 function monitorCard(monitor, isActive) {
   const button = document.createElement("button");
   button.type = "button";
@@ -283,8 +366,10 @@ function listingCard(listing) {
   const city = inferCity(listing);
   const country = inferCountry(listing);
   const locationLabel = city && country ? `${city}, ${country}` : city || country || "-";
+  const expanded = appState.expandedListingIds.has(listing.id);
   const wrapper = document.createElement("article");
-  wrapper.className = `listing${listing.isNew ? " new" : ""}${updated ? " updated" : ""}${listing.isStale ? " stale" : ""}`;
+  wrapper.className = `listing${listing.isNew ? " new" : ""}${updated ? " updated" : ""}${listing.isStale ? " stale" : ""}${expanded ? " expanded" : ""}`;
+  wrapper.dataset.listingId = listing.id;
 
   const compactRow = document.createElement("div");
   compactRow.className = "listing-main";
@@ -335,7 +420,25 @@ function listingCard(listing) {
     badges.appendChild(badge);
   }
 
-  wrapper.append(compactRow, badges);
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "listing-expand-btn";
+  toggleBtn.dataset.listingId = listing.id;
+  toggleBtn.setAttribute("aria-expanded", String(expanded));
+  toggleBtn.textContent = expanded ? "Collapse" : "Expand";
+
+  const rowTail = document.createElement("div");
+  rowTail.className = "listing-row-tail";
+  rowTail.append(badges, toggleBtn);
+
+  const topRow = document.createElement("div");
+  topRow.className = "listing-top-row";
+  topRow.append(compactRow, rowTail);
+
+  wrapper.append(topRow);
+  if (expanded) {
+    wrapper.append(buildListingDetails(listing, model, year, price, locationLabel));
+  }
   return wrapper;
 }
 
@@ -360,6 +463,8 @@ function renderMonitorList(payload) {
 function renderActiveMonitor(payload) {
   const activeMonitor = payload.activeMonitor;
   if (!activeMonitor) {
+    appState.expandedListingIds.clear();
+    appState.expandedListingMonitorId = null;
     els.activeMonitorTitle.textContent = "No active monitor";
     els.activeMonitorUrlChip.textContent = "-";
     els.activeMonitorName.value = "";
@@ -399,6 +504,16 @@ function renderActiveMonitor(payload) {
     : "Idle - waiting for next poll";
 
   const allListings = activeMonitor.listings || [];
+  if (appState.expandedListingMonitorId !== activeMonitor.id) {
+    appState.expandedListingIds.clear();
+    appState.expandedListingMonitorId = activeMonitor.id;
+  }
+  const allListingIds = new Set(allListings.map((listing) => listing.id));
+  for (const listingId of Array.from(appState.expandedListingIds)) {
+    if (!allListingIds.has(listingId)) {
+      appState.expandedListingIds.delete(listingId);
+    }
+  }
   const filteredListings = buildFilteredListings(activeMonitor, appState.activeSegment);
   els.listingsCount.textContent = String(filteredListings.length);
 
@@ -640,6 +755,25 @@ els.listingSegments.addEventListener("click", (event) => {
   appState.activeSegment = segment;
   if (appState.dashboard) {
     renderDashboard(appState.dashboard);
+  }
+});
+
+els.listingFeed.addEventListener("click", (event) => {
+  const toggleButton = event.target.closest(".listing-expand-btn");
+  if (!toggleButton) {
+    return;
+  }
+  const listingId = toggleButton.dataset.listingId;
+  if (!listingId) {
+    return;
+  }
+  if (appState.expandedListingIds.has(listingId)) {
+    appState.expandedListingIds.delete(listingId);
+  } else {
+    appState.expandedListingIds.add(listingId);
+  }
+  if (appState.dashboard) {
+    renderActiveMonitor(appState.dashboard);
   }
 });
 
