@@ -63,6 +63,81 @@ function parseNumberFromPriceSnippet(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+/**
+ * Reject common marketplace placeholders and junk (e.g. "1 €" in title when the real
+ * offer is not exposed in the list cell). Real list prices in this product segment are
+ * very rarely below MIN_PLAUSIBLE_LIST_PRICE_EUR.
+ */
+const MIN_PLAUSIBLE_LIST_PRICE_EUR = 500;
+const JUNK_EUR_MAX = 10;
+
+function eurAmountFromStringFragment(raw) {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : null;
+  }
+  return parseNumberFromPriceSnippet(String(raw));
+}
+
+function isJunkEurListPrice(n) {
+  if (n == null || !Number.isFinite(n) || n <= 0) {
+    return true;
+  }
+  if (n < JUNK_EUR_MAX) {
+    return true;
+  }
+  return n > 0 && n < MIN_PLAUSIBLE_LIST_PRICE_EUR;
+}
+
+/**
+ * @param {string|null|undefined|number} label
+ * @param {"list"|"ldjson"} source
+ */
+function normalizePriceCandidate(label, source) {
+  if (label == null) {
+    return null;
+  }
+  if (typeof label === "number" && Number.isFinite(label) && source === "ldjson") {
+    const rounded = Math.round(label);
+    if (rounded < 1) {
+      return null;
+    }
+    return formatEuroAmount(rounded);
+  }
+  const asString = String(label).trim();
+  if (!asString) {
+    return null;
+  }
+  const n = eurAmountFromStringFragment(asString.replace(/[^\d.,\s-]/g, " "));
+  if (n == null) {
+    return null;
+  }
+  if (source === "ldjson") {
+    if (n < 1) {
+      return null;
+    }
+    if (n < MIN_PLAUSIBLE_LIST_PRICE_EUR) {
+      return null;
+    }
+    if (n > 350000) {
+      return null;
+    }
+    return formatEuroAmount(n);
+  }
+  if (isJunkEurListPrice(n)) {
+    return null;
+  }
+  if (n >= 2500 && n <= 350000) {
+    return formatEuroAmount(n);
+  }
+  if (n >= MIN_PLAUSIBLE_LIST_PRICE_EUR && n < 2500) {
+    return formatEuroAmount(n);
+  }
+  return null;
+}
+
 function extractPriceFromText(value) {
   const normalized = normalizeWhitespace(value);
   const currencyMatches = [
@@ -74,7 +149,13 @@ function extractPriceFromText(value) {
         raw: normalizeWhitespace(match[0].replace(/\beur\b/i, "€")),
         numeric: parseNumberFromPriceSnippet(match[0]),
       }))
-      .filter((entry) => Number.isFinite(entry.numeric));
+      .filter(
+        (entry) =>
+          Number.isFinite(entry.numeric) &&
+          !isJunkEurListPrice(entry.numeric) &&
+          (entry.numeric >= 2500 || (entry.numeric >= MIN_PLAUSIBLE_LIST_PRICE_EUR && entry.numeric < 2500)) &&
+          entry.numeric <= 350000
+      );
 
     const realistic = ranked.filter((entry) => entry.numeric >= 2500 && entry.numeric <= 350000);
     const pool = realistic.length > 0 ? realistic : ranked;
@@ -89,9 +170,13 @@ function extractPriceFromText(value) {
   );
   if (labelMatch) {
     const labeledAmount = Number.parseInt(labelMatch[1].replace(/\s+/g, ""), 10);
-    const formatted = formatEuroAmount(labeledAmount);
-    if (formatted) {
-      return formatted;
+    if (isJunkEurListPrice(labeledAmount)) {
+      // skip
+    } else {
+      const formatted = formatEuroAmount(labeledAmount);
+      if (formatted) {
+        return formatted;
+      }
     }
   }
 
@@ -146,7 +231,7 @@ function extractPriceFromNode(node) {
     node.find("[data-testid='price'],.announcement-price,.price,.sell-price,.main-price").first().text()
   );
   if (selectorPrice) {
-    return extractPriceFromText(selectorPrice) || selectorPrice;
+    return normalizePriceCandidate(selectorPrice, "list");
   }
 
   const rawAttributeCandidates = [
@@ -157,12 +242,9 @@ function extractPriceFromNode(node) {
   ].filter(Boolean);
 
   for (const candidate of rawAttributeCandidates) {
-    const parsed = Number.parseFloat(String(candidate).replace(",", "."));
-    if (Number.isFinite(parsed) && parsed >= 2500 && parsed <= 350000) {
-      const formatted = formatEuroAmount(parsed);
-      if (formatted) {
-        return formatted;
-      }
+    const fromAttr = normalizePriceCandidate(candidate, "list");
+    if (fromAttr) {
+      return fromAttr;
     }
   }
 
@@ -283,16 +365,22 @@ function parseJsonSafely(rawValue) {
 
 function tryExtractNumericPrice(rawValue) {
   if (typeof rawValue === "number") {
-    return formatEuroAmount(rawValue);
+    return normalizePriceCandidate(rawValue, "ldjson");
   }
   if (typeof rawValue === "string") {
-    const parsedFromText = extractPriceFromText(rawValue);
-    if (parsedFromText) {
-      return parsedFromText;
+    return normalizePriceCandidate(rawValue, "ldjson");
+  }
+  if (rawValue && typeof rawValue === "object") {
+    if (rawValue["@type"] === "Offer" && rawValue.price != null) {
+      return normalizePriceCandidate(
+        rawValue.priceCurrency && String(rawValue.priceCurrency).toUpperCase() === "USD"
+          ? null
+          : rawValue.price,
+        "ldjson"
+      );
     }
-    const parsedNumeric = Number.parseFloat(rawValue.replace(/[^\d.,]/g, "").replace(",", "."));
-    if (Number.isFinite(parsedNumeric)) {
-      return formatEuroAmount(parsedNumeric);
+    if (rawValue.price != null) {
+      return normalizePriceCandidate(rawValue.price, "ldjson");
     }
   }
   return null;
@@ -311,6 +399,106 @@ function walkStructuredData(value, visitor, parentKey = "") {
       walkStructuredData(child, visitor, key);
     }
   }
+}
+
+/**
+ * Best-effort: page-level Schema.org (application/ld+json) Product+Offer by listing URL.
+ * Merged into list cards when cell price is missing or looks like a placeholder.
+ */
+function collectProductOfferPricesFromLdValue(value, outMap) {
+  if (value == null) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectProductOfferPricesFromLdValue(item, outMap);
+    }
+    return;
+  }
+  if (typeof value !== "object") {
+    return;
+  }
+
+  const typeVal = value["@type"];
+  const types = typeVal == null ? [] : Array.isArray(typeVal) ? typeVal : [String(typeVal)];
+  const isProduct = types.some((t) => String(t).toLowerCase().includes("product"));
+
+  if (isProduct && value.url) {
+    const id = listingIdFromUrl(String(value.url));
+    const offer = value.offers;
+    if (id && offer) {
+      const list = Array.isArray(offer) ? offer : [offer];
+      for (const o of list) {
+        if (!o || typeof o !== "object") {
+          continue;
+        }
+        const ccy = o.priceCurrency != null ? String(o.priceCurrency).toUpperCase() : "EUR";
+        if (ccy && ccy !== "EUR") {
+          continue;
+        }
+        const formatted = tryExtractNumericPrice(o);
+        if (formatted) {
+          outMap.set(id, formatted);
+          break;
+        }
+      }
+    }
+  }
+
+  for (const v of Object.values(value)) {
+    if (v && typeof v === "object") {
+      collectProductOfferPricesFromLdValue(v, outMap);
+    }
+  }
+}
+
+function buildJsonLdProductPriceByListingId($) {
+  const map = new Map();
+  $("script[type='application/ld+json']")
+    .toArray()
+    .forEach((el) => {
+      const parsed = parseJsonSafely($(el).text());
+      if (parsed) {
+        collectProductOfferPricesFromLdValue(parsed, map);
+      }
+    });
+  return map;
+}
+
+function eurFromListingPriceString(label) {
+  if (label == null) {
+    return null;
+  }
+  const s = String(label);
+  if (/€|eur/i.test(s)) {
+    return parseNumberFromPriceSnippet(s);
+  }
+  const m = s.match(/(\d[\d\s.]{2,})/);
+  if (m) {
+    return parseNumberFromPriceSnippet(m[0]);
+  }
+  return eurAmountFromStringFragment(s.replace(/[^\d]/g, " "));
+}
+
+function mergeListingsWithJsonLdPrices($, listings) {
+  if (!listings || listings.length === 0) {
+    return listings;
+  }
+  const fromLd = buildJsonLdProductPriceByListingId($);
+  if (fromLd.size === 0) {
+    return listings;
+  }
+  return listings.map((listing) => {
+    const pLd = fromLd.get(String(listing.id));
+    if (!pLd) {
+      return listing;
+    }
+    const n = eurFromListingPriceString(listing.price);
+    if (listing.price == null || n == null || isJunkEurListPrice(n)) {
+      return { ...listing, price: pLd };
+    }
+    return listing;
+  });
 }
 
 function extractStructuredFromNode($, node) {
@@ -531,7 +719,7 @@ function parseListingAnchorsFallback(html) {
       });
     });
 
-  return listings;
+  return mergeListingsWithJsonLdPrices($, listings);
 }
 
 function parseListingBlocks(html) {
@@ -591,7 +779,7 @@ function parseListingBlocks(html) {
       });
     });
 
-  return listings;
+  return mergeListingsWithJsonLdPrices($, listings);
 }
 
 async function fetchWithPlaywright(url) {
