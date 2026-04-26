@@ -45,6 +45,8 @@ const els = {
   statusMessage: document.getElementById("status-message"),
   listingSegments: document.getElementById("listing-segments"),
   listingSortBy: document.getElementById("listing-sort"),
+  listingsStatsStrip: document.getElementById("listings-stats-strip"),
+  listingColumnsHead: document.querySelector(".listing-columns-head"),
   segmentSummary: document.getElementById("segment-summary"),
   listingsCount: document.getElementById("listings-count"),
   listingFeed: document.getElementById("listing-feed"),
@@ -214,6 +216,37 @@ function formatCompactResultLabel(status, message) {
     return rawMessage;
   }
   return `${rawMessage.slice(0, 39)}…`;
+}
+
+function renderListingsStatsStrip(activeMonitor, allListings, filteredListings) {
+  if (!els.listingsStatsStrip) {
+    return;
+  }
+  const total = Number(allListings?.length || 0);
+  const shown = Number(filteredListings?.length || 0);
+  const newCount = Number(activeMonitor?.newListings || 0);
+  const updatedCount = Number((allListings || []).reduce(
+    (count, listing) => (isRecentlyUpdated(listing) ? count + 1 : count),
+    0
+  ));
+  const staleCount = Number(activeMonitor?.staleListings || 0);
+  const chips = [
+    { key: "shown", label: "Shown", value: shown },
+    { key: "total", label: "Total", value: total },
+    { key: "new", label: "New", value: newCount },
+    { key: "updated", label: "Updated", value: updatedCount },
+    { key: "stale", label: "Stale", value: staleCount },
+  ];
+  els.listingsStatsStrip.innerHTML = chips
+    .map(
+      (chip) => `
+      <span class="listings-stat-chip ${chip.key}">
+        <span class="chip-dot" aria-hidden="true"></span>
+        <span class="chip-label">${chip.label}</span>
+        <strong class="chip-value">${chip.value}</strong>
+      </span>`
+    )
+    .join("");
 }
 
 function setButtonLoading(button, isLoading, loadingLabel) {
@@ -765,6 +798,10 @@ function listingCard(listing) {
   const compactRow = document.createElement("div");
   compactRow.className = "listing-main";
 
+  const indicator = document.createElement("span");
+  indicator.className = "listing-indicator";
+  indicator.setAttribute("aria-hidden", "true");
+
   const modelCell = document.createElement("div");
   modelCell.className = "listing-cell model";
   const link = document.createElement("a");
@@ -832,7 +869,7 @@ function listingCard(listing) {
 
   const topRow = document.createElement("div");
   topRow.className = "listing-top-row";
-  topRow.append(compactRow, rowTail);
+  topRow.append(indicator, compactRow, rowTail);
 
   wrapper.append(topRow);
   if (expanded) {
@@ -896,6 +933,12 @@ function renderActiveMonitor(payload) {
     }
     if (els.activeMonitorCollapsedSummary) {
       els.activeMonitorCollapsedSummary.hidden = true;
+    }
+    if (els.listingsStatsStrip) {
+      els.listingsStatsStrip.innerHTML = "";
+    }
+    if (els.listingColumnsHead) {
+      els.listingColumnsHead.hidden = true;
     }
     appState.monitorSettingsCollapsed = true;
     applyMonitorSettingsPanelState();
@@ -967,6 +1010,10 @@ function renderActiveMonitor(payload) {
     buildFilteredListings(activeMonitor, appState.activeSegment),
     appState.sortBy
   );
+  renderListingsStatsStrip(activeMonitor, allListings, filteredListings);
+  if (els.listingColumnsHead) {
+    els.listingColumnsHead.hidden = filteredListings.length === 0;
+  }
   els.listingsCount.textContent = String(filteredListings.length);
   if (els.listingSortBy) {
     els.listingSortBy.value = appState.sortBy;
