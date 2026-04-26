@@ -272,6 +272,7 @@ function extractLocationTextFromNode(node) {
     ".announcement-place",
     ".announcement-city",
     ".announcement-address",
+    ".seller-contact-location",
     ".location",
     ".place",
     ".city",
@@ -849,6 +850,9 @@ async function scrapeAutoplius(searchUrl) {
 }
 
 module.exports = {
+  __testUtils: {
+    parseListingBlocks,
+  },
   extractLocationFromText,
   scrapeAutoplius,
 };
