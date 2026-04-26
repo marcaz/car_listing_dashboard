@@ -209,6 +209,18 @@ function isLikelyCountry(value) {
     "šveicarija",
     "jav",
     "uk",
+    "lithuania",
+    "latvia",
+    "estonia",
+    "poland",
+    "germany",
+    "france",
+    "italy",
+    "spain",
+    "sweden",
+    "norway",
+    "denmark",
+    "finland",
   ]);
   return knownCountries.has(normalized);
 }
@@ -219,13 +231,32 @@ function extractLocationTextFromNode(node) {
     ".announcement-location",
     ".announcement-place",
     ".announcement-city",
+    ".announcement-address",
     ".location",
     ".place",
+    ".city",
+    ".country",
+    "[itemprop='addressLocality']",
+    "[itemprop='addressCountry']",
   ];
   for (const selector of selectors) {
     const text = normalizeWhitespace(node.find(selector).first().text());
     if (text) {
       return text;
+    }
+  }
+  const attributeCandidates = [
+    node.attr("data-location"),
+    node.attr("data-city"),
+    node.attr("data-country"),
+    node.find("[data-location]").first().attr("data-location"),
+    node.find("[data-city]").first().attr("data-city"),
+    node.find("[data-country]").first().attr("data-country"),
+  ];
+  for (const candidate of attributeCandidates) {
+    const normalized = normalizeWhitespace(candidate);
+    if (normalized) {
+      return normalized;
     }
   }
   return "";
@@ -329,16 +360,20 @@ function extractStructuredFromNode($, node) {
         }
       }
 
-      if (!data.city && /(city|town|miestas|settlement)/i.test(lowerKey) && typeof rawValue === "string") {
+      if (
+        !data.city &&
+        /(city|town|miestas|settlement|locality|addresslocality|municipality)/i.test(lowerKey) &&
+        typeof rawValue === "string"
+      ) {
         const normalized = normalizeWhitespace(rawValue);
         if (looksLikePlaceName(normalized)) {
           data.city = normalized;
         }
       }
 
-      if (!data.country && /(country|salis|šalis|valstyb)/i.test(lowerKey)) {
+      if (!data.country && /(country|salis|šalis|valstyb|nation|addresscountry)/i.test(lowerKey)) {
         const normalized = normalizeWhitespace(String(rawValue || ""));
-        if (looksLikePlaceName(normalized)) {
+        if (looksLikePlaceName(normalized) || isLikelyCountry(normalized)) {
           data.country = normalized;
         }
       }
@@ -355,6 +390,32 @@ function extractStructuredFromNode($, node) {
   return data;
 }
 
+function extractTrailingLocation(normalized) {
+  const tail = normalized.slice(-170);
+  const withCountry = tail.match(
+    /(?:\b\d{1,3}(?:[ \u00A0]\d{3})*\s*km\b[\s,;/-]*)?([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})\s*[,-]\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})\s*$/u
+  );
+  if (withCountry) {
+    const city = normalizeWhitespace(withCountry[1]);
+    const country = normalizeWhitespace(withCountry[2]);
+    return {
+      city: looksLikePlaceName(city) ? city : null,
+      country: looksLikePlaceName(country) || isLikelyCountry(country) ? country : null,
+    };
+  }
+
+  const cityOnly = tail.match(
+    /(?:\b\d{1,3}(?:[ \u00A0]\d{3})*\s*km\b[\s,;/-]*)?([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})\s*$/u
+  );
+  if (cityOnly) {
+    const city = normalizeWhitespace(cityOnly[1]);
+    if (looksLikePlaceName(city) && !isLikelyCountry(city)) {
+      return { city, country: null };
+    }
+  }
+  return { city: null, country: null };
+}
+
 function extractLocationFromText(value) {
   const normalized = normalizeWhitespace(value);
   if (!normalized) {
@@ -367,6 +428,11 @@ function extractLocationFromText(value) {
     ),
   ];
   if (matches.length === 0) {
+    const trailing = extractTrailingLocation(normalized);
+    if (trailing.city || trailing.country) {
+      return trailing;
+    }
+
     const commaParts = normalized
       .split(",")
       .map((part) => normalizeWhitespace(part))
@@ -382,7 +448,7 @@ function extractLocationFromText(value) {
       }
     }
 
-    const words = normalized.split(/[|/]/).map((part) => normalizeWhitespace(part));
+    const words = normalized.split(/[|/;,]/).map((part) => normalizeWhitespace(part));
     for (const candidate of words.reverse()) {
       if (looksLikePlaceName(candidate)) {
         return { city: candidate, country: null };

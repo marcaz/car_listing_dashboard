@@ -34,9 +34,13 @@ const els = {
   statusSource: document.getElementById("status-source"),
   statusMessage: document.getElementById("status-message"),
   listingSegments: document.getElementById("listing-segments"),
+  listingSortBy: document.getElementById("listing-sort"),
   segmentSummary: document.getElementById("segment-summary"),
   listingsCount: document.getElementById("listings-count"),
   listingFeed: document.getElementById("listing-feed"),
+  debugLogFeed: document.getElementById("debug-log-feed"),
+  debugLogClearBtn: document.getElementById("debug-log-clear-btn"),
+  debugLogPauseBtn: document.getElementById("debug-log-pause-btn"),
 };
 
 const actionState = {
@@ -51,7 +55,54 @@ const actionState = {
 const appState = {
   dashboard: null,
   activeSegment: "all",
+  sortBy: "newest",
+  expandedListingIds: new Set(),
+  expandedListingMonitorId: null,
+  debugLogPaused: false,
 };
+
+const DEBUG_LOG_LIMIT = 160;
+
+function sanitizeDebugPayload(value) {
+  const sensitiveKeys = new Set(["apiKey", "apikey", "authorization", "token", "password", "secret"]);
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeDebugPayload(item));
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const output = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const lowered = String(key || "").toLowerCase();
+    if (sensitiveKeys.has(lowered)) {
+      output[key] = raw ? "[MASKED]" : raw;
+      continue;
+    }
+    output[key] = sanitizeDebugPayload(raw);
+  }
+  return output;
+}
+
+function pushDebugLog(level, message, details) {
+  if (!els.debugLogFeed || appState.debugLogPaused) {
+    return;
+  }
+  const entry = document.createElement("div");
+  entry.className = `debug-log-entry ${level || "info"}`;
+  const timestamp = new Date().toLocaleTimeString();
+  const sanitizedDetails = details && typeof details === "object" ? sanitizeDebugPayload(details) : details;
+  const detailsText =
+    sanitizedDetails && typeof sanitizedDetails === "object"
+      ? ` ${JSON.stringify(sanitizedDetails)}`
+      : sanitizedDetails
+        ? ` ${String(sanitizedDetails)}`
+        : "";
+  entry.textContent = `[${timestamp}] ${String(message || "")}${detailsText}`;
+  els.debugLogFeed.prepend(entry);
+  while (els.debugLogFeed.children.length > DEBUG_LOG_LIMIT) {
+    els.debugLogFeed.removeChild(els.debugLogFeed.lastChild);
+  }
+}
 
 function setButtonLoading(button, isLoading, loadingLabel) {
   if (!button) {
@@ -106,17 +157,6 @@ function renderClaudeControls(payload) {
   if (!actionState.togglingClaude) {
     els.claudeToggleBtn.disabled = !available;
   }
-  if (els.claudeSettingsForm) {
-    for (const field of els.claudeSettingsForm.elements) {
-      if (!field || typeof field !== "object" || !("disabled" in field)) {
-        continue;
-      }
-      if (field.id === "save-claude-settings-btn") {
-        continue;
-      }
-      field.disabled = !available;
-    }
-  }
   if (els.claudeApiKey) {
     els.claudeApiKey.placeholder = claudeSettings.hasApiKey
       ? `${claudeSettings.apiKeyMasked || "********"} (configured)`
@@ -146,7 +186,7 @@ function renderClaudeControls(payload) {
 
   if (!available) {
     els.claudeStatusText.textContent =
-      "Claude fallback unavailable: set ANTHROPIC_API_KEY in environment.";
+      "Claude fallback currently unavailable. Set API key below and save settings.";
     return;
   }
 
@@ -250,6 +290,22 @@ function inferCountry(listing) {
   return locationMatch[2]?.trim() || null;
 }
 
+function sanitizeLocationDisplayValue(value) {
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.length > 42) {
+    return null;
+  }
+  if (/\d/.test(normalized) && /€|eur|kw|km|benzinas|dyzelinas|automatin/i.test(normalized)) {
+    return null;
+  }
+  return normalized;
+}
+
 function buildFilteredListings(activeMonitor, segment) {
   const listings = activeMonitor?.listings || [];
   if (segment === "new") {
@@ -259,6 +315,301 @@ function buildFilteredListings(activeMonitor, segment) {
     return listings.filter((listing) => isRecentlyUpdated(listing));
   }
   return listings;
+}
+
+function parsePriceAmount(listing) {
+  const raw = inferPrice(listing);
+  if (!raw) {
+    return Number.NaN;
+  }
+  const numeric = Number.parseFloat(String(raw).replace(/[^\d,.\-]/g, "").replace(",", "."));
+  return Number.isFinite(numeric) ? numeric : Number.NaN;
+}
+
+function compareTextAsc(a, b) {
+  return String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+}
+
+function sortListings(listings, sortBy) {
+  const sorted = [...(listings || [])];
+  switch (sortBy) {
+    case "price_asc":
+      sorted.sort((a, b) => {
+        const aPrice = parsePriceAmount(a);
+        const bPrice = parsePriceAmount(b);
+        const aFinite = Number.isFinite(aPrice);
+        const bFinite = Number.isFinite(bPrice);
+        if (!aFinite && !bFinite) {
+          return 0;
+        }
+        if (!aFinite) {
+          return 1;
+        }
+        if (!bFinite) {
+          return -1;
+        }
+        return aPrice - bPrice;
+      });
+      break;
+    case "price_desc":
+      sorted.sort((a, b) => {
+        const aPrice = parsePriceAmount(a);
+        const bPrice = parsePriceAmount(b);
+        const aFinite = Number.isFinite(aPrice);
+        const bFinite = Number.isFinite(bPrice);
+        if (!aFinite && !bFinite) {
+          return 0;
+        }
+        if (!aFinite) {
+          return 1;
+        }
+        if (!bFinite) {
+          return -1;
+        }
+        return bPrice - aPrice;
+      });
+      break;
+    case "year_desc":
+      sorted.sort((a, b) => {
+        const aYear = Number(inferYear(a));
+        const bYear = Number(inferYear(b));
+        const aFinite = Number.isFinite(aYear);
+        const bFinite = Number.isFinite(bYear);
+        if (!aFinite && !bFinite) {
+          return compareTextAsc(inferModel(a), inferModel(b));
+        }
+        if (!aFinite) {
+          return 1;
+        }
+        if (!bFinite) {
+          return -1;
+        }
+        if (bYear !== aYear) {
+          return bYear - aYear;
+        }
+        return compareTextAsc(inferModel(a), inferModel(b));
+      });
+      break;
+    case "year_asc":
+      sorted.sort((a, b) => {
+        const aYear = Number(inferYear(a));
+        const bYear = Number(inferYear(b));
+        const aFinite = Number.isFinite(aYear);
+        const bFinite = Number.isFinite(bYear);
+        if (!aFinite && !bFinite) {
+          return compareTextAsc(inferModel(a), inferModel(b));
+        }
+        if (!aFinite) {
+          return 1;
+        }
+        if (!bFinite) {
+          return -1;
+        }
+        if (aYear !== bYear) {
+          return aYear - bYear;
+        }
+        return compareTextAsc(inferModel(a), inferModel(b));
+      });
+      break;
+    case "model_asc":
+      sorted.sort((a, b) => compareTextAsc(inferModel(a), inferModel(b)));
+      break;
+    case "recently_changed":
+      sorted.sort((a, b) => {
+        const aChanged = Date.parse(a.lastChangedAt || "") || 0;
+        const bChanged = Date.parse(b.lastChangedAt || "") || 0;
+        return bChanged - aChanged;
+      });
+      break;
+    case "location_asc":
+      sorted.sort((a, b) =>
+        compareTextAsc(
+          `${inferCity(a) || ""}, ${inferCountry(a) || ""}`,
+          `${inferCity(b) || ""}, ${inferCountry(b) || ""}`
+        )
+      );
+      break;
+    case "newest":
+    default:
+      sorted.sort((a, b) => {
+        const aFirstSeen = Date.parse(a.firstSeenAt || "") || 0;
+        const bFirstSeen = Date.parse(b.firstSeenAt || "") || 0;
+        return bFirstSeen - aFirstSeen;
+      });
+      break;
+  }
+  return sorted;
+}
+
+function formatConfidence(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "-";
+  }
+  return `${Math.round(numeric * 100)}%`;
+}
+
+function formatChangeType(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  const labels = {
+    price_drop: "Price drop",
+    price_increase: "Price increase",
+    details_update: "Details update",
+    photo_update: "Photo update",
+    link_update: "Link update",
+    repost: "Repost",
+  };
+  return labels[normalized] || "-";
+}
+
+function formatRiskLevel(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  const labels = {
+    low: "Low risk",
+    medium: "Medium risk",
+    high: "High risk",
+  };
+  return labels[normalized] || "-";
+}
+
+function buildRiskBadge(listing) {
+  const level = (listing?.riskLevel || "").toString().trim().toLowerCase();
+  const score = Number(listing?.riskScore);
+  if (!level && !Number.isFinite(score)) {
+    return null;
+  }
+  const badge = document.createElement("span");
+  const normalizedLevel = level || (score >= 55 ? "high" : score >= 25 ? "medium" : "low");
+  badge.className = `badge risk risk-${normalizedLevel}`;
+  const scoreLabel = Number.isFinite(score) ? ` ${Math.round(score)}` : "";
+  badge.textContent = `RISK${scoreLabel}`;
+  return badge;
+}
+
+function buildChangeBadge(changeType) {
+  const normalized = (changeType || "").toString().trim().toLowerCase();
+  const specs = {
+    price_drop: {
+      label: "PRICE DROP",
+      className: "change-price-drop",
+    },
+    price_increase: {
+      label: "PRICE UP",
+      className: "change-price-increase",
+    },
+    details_update: {
+      label: "DETAILS UPDATED",
+      className: "change-details",
+    },
+    photo_update: {
+      label: "PHOTO UPDATED",
+      className: "change-photo",
+    },
+    link_update: {
+      label: "LINK UPDATED",
+      className: "change-link",
+    },
+    repost: {
+      label: "REPOST",
+      className: "change-repost",
+    },
+  };
+  const spec = specs[normalized];
+  if (!spec) {
+    return null;
+  }
+  const badge = document.createElement("span");
+  badge.className = `badge ${spec.className}`;
+  badge.textContent = spec.label;
+  return badge;
+}
+
+function makeDetailItem(label, value) {
+  const row = document.createElement("div");
+  row.className = "listing-detail-item";
+
+  const labelNode = document.createElement("span");
+  labelNode.className = "detail-label";
+  labelNode.textContent = label;
+
+  const valueNode = document.createElement("span");
+  valueNode.className = "detail-value";
+  valueNode.textContent = value || "-";
+
+  row.append(labelNode, valueNode);
+  return row;
+}
+
+function buildListingDetails(listing, model, year, price, locationLabel) {
+  const details = document.createElement("div");
+  details.className = "listing-details";
+
+  const mediaColumn = document.createElement("div");
+  mediaColumn.className = "listing-media";
+
+  if (listing.imageUrl) {
+    const thumb = document.createElement("img");
+    thumb.className = "listing-thumb";
+    thumb.src = listing.imageUrl;
+    thumb.alt = `${model} thumbnail`;
+    thumb.loading = "lazy";
+    thumb.decoding = "async";
+    thumb.width = 128;
+    thumb.height = 128;
+    mediaColumn.appendChild(thumb);
+  } else {
+    const placeholder = document.createElement("div");
+    placeholder.className = "listing-thumb placeholder";
+    placeholder.textContent = "No image";
+    mediaColumn.appendChild(placeholder);
+  }
+
+  const detailGrid = document.createElement("div");
+  detailGrid.className = "listing-detail-grid";
+  detailGrid.append(
+    makeDetailItem("Model", model),
+    makeDetailItem("Year", year || "-"),
+    makeDetailItem("Price", price || "-"),
+    makeDetailItem("Location", locationLabel),
+    makeDetailItem("Change type", formatChangeType(listing.changeType)),
+    makeDetailItem("Change reason", listing.changeReason || "-"),
+    makeDetailItem("Change confidence", formatConfidence(listing.changeConfidence)),
+    makeDetailItem("Classified by", listing.changedBy || "-"),
+    makeDetailItem("Risk score", Number.isFinite(Number(listing.riskScore)) ? String(Math.round(Number(listing.riskScore))) : "-"),
+    makeDetailItem("Risk level", formatRiskLevel(listing.riskLevel)),
+    makeDetailItem(
+      "Risk reasons",
+      Array.isArray(listing.riskReasons) && listing.riskReasons.length > 0
+        ? listing.riskReasons.join(" | ")
+        : "-"
+    ),
+    makeDetailItem("Risk confidence", formatConfidence(listing.riskConfidence)),
+    makeDetailItem("Risk scored by", listing.riskScoredBy || "-"),
+    makeDetailItem("Repost of ID", listing.repostOfId || "-"),
+    makeDetailItem("Title", listing.title || "-"),
+    makeDetailItem("Updated text", listing.updatedText || "-"),
+    makeDetailItem("First seen", formatDateTime(listing.firstSeenAt)),
+    makeDetailItem("Last changed", formatDateTime(listing.lastChangedAt)),
+    makeDetailItem("Last seen", formatDateTime(listing.lastSeenAt)),
+    makeDetailItem("Parse confidence", formatConfidence(listing.parseConfidence))
+  );
+
+  const sourceRow = document.createElement("div");
+  sourceRow.className = "listing-source-row";
+  const sourceLink = document.createElement("a");
+  sourceLink.href = listing.url;
+  sourceLink.target = "_blank";
+  sourceLink.rel = "noopener noreferrer";
+  sourceLink.textContent = "Open full listing";
+  sourceLink.className = "source-link";
+  sourceRow.appendChild(sourceLink);
+
+  const contentColumn = document.createElement("div");
+  contentColumn.className = "listing-content";
+  contentColumn.append(detailGrid, sourceRow);
+
+  details.append(mediaColumn, contentColumn);
+  return details;
 }
 
 function monitorCard(monitor, isActive) {
@@ -291,11 +642,13 @@ function listingCard(listing) {
   const model = inferModel(listing);
   const year = inferYear(listing);
   const price = inferPrice(listing) || "-";
-  const city = inferCity(listing);
-  const country = inferCountry(listing);
+  const city = sanitizeLocationDisplayValue(inferCity(listing));
+  const country = sanitizeLocationDisplayValue(inferCountry(listing));
   const locationLabel = city && country ? `${city}, ${country}` : city || country || "-";
+  const expanded = appState.expandedListingIds.has(listing.id);
   const wrapper = document.createElement("article");
-  wrapper.className = `listing${listing.isNew ? " new" : ""}${updated ? " updated" : ""}${listing.isStale ? " stale" : ""}`;
+  wrapper.className = `listing${listing.isNew ? " new" : ""}${updated ? " updated" : ""}${listing.isStale ? " stale" : ""}${expanded ? " expanded" : ""}`;
+  wrapper.dataset.listingId = listing.id;
 
   const compactRow = document.createElement("div");
   compactRow.className = "listing-main";
@@ -345,8 +698,34 @@ function listingCard(listing) {
     badge.textContent = "NOT IN LATEST SCAN";
     badges.appendChild(badge);
   }
+  const changeBadge = buildChangeBadge(listing.changeType);
+  if (changeBadge) {
+    badges.appendChild(changeBadge);
+  }
+  const riskBadge = buildRiskBadge(listing);
+  if (riskBadge) {
+    badges.appendChild(riskBadge);
+  }
 
-  wrapper.append(compactRow, badges);
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.className = "listing-expand-btn";
+  toggleBtn.dataset.listingId = listing.id;
+  toggleBtn.setAttribute("aria-expanded", String(expanded));
+  toggleBtn.textContent = expanded ? "Collapse" : "Expand";
+
+  const rowTail = document.createElement("div");
+  rowTail.className = "listing-row-tail";
+  rowTail.append(badges, toggleBtn);
+
+  const topRow = document.createElement("div");
+  topRow.className = "listing-top-row";
+  topRow.append(compactRow, rowTail);
+
+  wrapper.append(topRow);
+  if (expanded) {
+    wrapper.append(buildListingDetails(listing, model, year, price, locationLabel));
+  }
   return wrapper;
 }
 
@@ -371,6 +750,8 @@ function renderMonitorList(payload) {
 function renderActiveMonitor(payload) {
   const activeMonitor = payload.activeMonitor;
   if (!activeMonitor) {
+    appState.expandedListingIds.clear();
+    appState.expandedListingMonitorId = null;
     els.activeMonitorTitle.textContent = "No active monitor";
     els.activeMonitorUrlChip.textContent = "-";
     els.activeMonitorName.value = "";
@@ -410,10 +791,41 @@ function renderActiveMonitor(payload) {
     : "Idle - waiting for next poll";
 
   const allListings = activeMonitor.listings || [];
-  const filteredListings = buildFilteredListings(activeMonitor, appState.activeSegment);
+  if (appState.expandedListingMonitorId !== activeMonitor.id) {
+    appState.expandedListingIds.clear();
+    appState.expandedListingMonitorId = activeMonitor.id;
+  }
+  const allListingIds = new Set(allListings.map((listing) => listing.id));
+  for (const listingId of Array.from(appState.expandedListingIds)) {
+    if (!allListingIds.has(listingId)) {
+      appState.expandedListingIds.delete(listingId);
+    }
+  }
+  const filteredListings = sortListings(
+    buildFilteredListings(activeMonitor, appState.activeSegment),
+    appState.sortBy
+  );
   els.listingsCount.textContent = String(filteredListings.length);
+  if (els.listingSortBy) {
+    els.listingSortBy.value = appState.sortBy;
+  }
 
-  els.segmentSummary.textContent = `${filteredListings.length} shown / ${allListings.length} total · ${activeMonitor.newListings} marked NEW · ${activeMonitor.staleListings} stale`;
+  const normalizationSummary = activeMonitor.lastPoll?.normalization;
+  const riskSummary = activeMonitor.lastPoll?.riskAssessment;
+  const classificationSummary = activeMonitor.lastPoll?.changeClassification;
+  const normalizationText =
+    normalizationSummary && typeof normalizationSummary.message === "string"
+      ? normalizationSummary.message
+      : "Normalization unavailable.";
+  const classificationText =
+    classificationSummary && typeof classificationSummary.message === "string"
+      ? classificationSummary.message
+      : "Change classification unavailable.";
+  const riskText =
+    riskSummary && typeof riskSummary.message === "string"
+      ? riskSummary.message
+      : "Risk scoring unavailable.";
+  els.segmentSummary.textContent = `${filteredListings.length} shown / ${allListings.length} total · ${activeMonitor.newListings} marked NEW · ${activeMonitor.staleListings} stale · ${normalizationText} · ${riskText} · ${classificationText}`;
 
   els.listingFeed.innerHTML = "";
   if (filteredListings.length === 0) {
@@ -444,9 +856,31 @@ function renderDashboard(payload) {
   renderSegments();
   renderActiveMonitor(payload);
   applyLoadingStates();
+  const activeMonitor = payload?.activeMonitor;
+  if (activeMonitor?.lastPoll) {
+    const claude = activeMonitor.lastPoll.claude || {};
+    const normalization = activeMonitor.lastPoll.normalization || {};
+    const riskAssessment = activeMonitor.lastPoll.riskAssessment || {};
+    const classification = activeMonitor.lastPoll.changeClassification || {};
+    pushDebugLog(
+      "info",
+      `Dashboard update: poll=${activeMonitor.lastPoll.status || "unknown"}, source=${activeMonitor.lastPoll.source || "n/a"}, monitor=${activeMonitor.name || "n/a"}`,
+      {
+        parserMode: activeMonitor.lastPoll.parserMode || "n/a",
+        claudeUsed: Boolean(claude.used),
+        claudeMessage: claude.message || null,
+        normalizationMessage: normalization.message || null,
+        riskAssessmentMessage: riskAssessment.message || null,
+        changeClassificationMessage: classification.message || null,
+      }
+    );
+  } else {
+    pushDebugLog("info", "Dashboard update received.");
+  }
 }
 
 async function callJson(url, method, body) {
+  pushDebugLog("info", `API ${method} ${url} request`, body && typeof body === "object" ? body : null);
   const options = { method };
   if (body !== undefined) {
     options.headers = {
@@ -463,12 +897,19 @@ async function callJson(url, method, body) {
     } catch {
       // Ignore parse failures.
     }
-    throw new Error(`${method} ${url} failed (${response.status})${details}`);
+    const errorMessage = `${method} ${url} failed (${response.status})${details}`;
+    pushDebugLog("error", errorMessage);
+    throw new Error(errorMessage);
   }
-  return response.json().catch(() => ({}));
+  const payload = await response.json().catch(() => ({}));
+  pushDebugLog("ok", `API ${method} ${url} success`, {
+    status: response.status,
+  });
+  return payload;
 }
 
 async function refreshDashboard() {
+  pushDebugLog("info", "Refreshing dashboard...");
   const payload = await callJson("/api/dashboard", "GET");
   renderDashboard(payload);
 }
@@ -483,9 +924,11 @@ els.monitorList.addEventListener("click", async (event) => {
     return;
   }
   try {
+    pushDebugLog("info", "Switching active monitor", { monitorId });
     const payload = await callJson(`/api/monitors/${monitorId}/activate`, "POST");
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to activate monitor", { monitorId, error: error.message });
     alert(`Failed to activate monitor: ${error.message}`);
   }
 });
@@ -495,6 +938,10 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
   actionState.addingMonitor = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Adding monitor", {
+      name: els.addMonitorName.value.trim() || null,
+      searchUrl: els.addMonitorUrl.value.trim() || null,
+    });
     const payload = await callJson("/api/monitors", "POST", {
       name: els.addMonitorName.value.trim(),
       searchUrl: els.addMonitorUrl.value.trim(),
@@ -507,6 +954,7 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
     els.addNewBadge.value = "120";
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to add monitor", { error: error.message });
     alert(`Failed to add monitor: ${error.message}`);
   } finally {
     actionState.addingMonitor = false;
@@ -522,11 +970,13 @@ els.claudeToggleBtn.addEventListener("click", async () => {
   actionState.togglingClaude = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Updating Claude toggle", { nextEnabled: !current });
     const payload = await callJson("/api/settings", "PATCH", {
       claudeParsingEnabled: !current,
     });
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to update Claude toggle", { error: error.message });
     alert(`Failed to update Claude setting: ${error.message}`);
   } finally {
     actionState.togglingClaude = false;
@@ -539,14 +989,20 @@ els.claudeToggleBtn.addEventListener("click", async () => {
 
 els.claudeSettingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (els.claudeToggleBtn.dataset.forceDisabled === "true") {
-    return;
-  }
   const current = appState.dashboard?.settings || {};
   const claudeCurrent = current.claude || {};
   actionState.savingClaudeSettings = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Saving Claude settings", {
+      model: els.claudeModel.value.trim(),
+      reasoningStrength: els.claudeReasoningStrength.value,
+      maxCandidates: Number(els.claudeMaxCandidates.value),
+      minConfidence: Number(els.claudeMinConfidence.value),
+      temperature: Number(els.claudeTemperature.value),
+      maxTokens: Number(els.claudeMaxTokens.value),
+      providedApiKey: Boolean(els.claudeApiKey.value.trim()),
+    });
     const payload = await callJson("/api/settings", "PATCH", {
       claudeParsingEnabled: Boolean(current.claudeParsingEnabled),
       claude: {
@@ -566,6 +1022,7 @@ els.claudeSettingsForm.addEventListener("submit", async (event) => {
     }
     els.claudeApiKey.value = "";
   } catch (error) {
+    pushDebugLog("error", "Failed to save Claude settings", { error: error.message });
     alert(`Failed to save Claude settings: ${error.message}`);
   } finally {
     actionState.savingClaudeSettings = false;
@@ -586,6 +1043,12 @@ els.activeMonitorForm.addEventListener("submit", async (event) => {
   actionState.savingMonitor = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Saving active monitor settings", {
+      monitorId,
+      searchUrl: els.activeMonitorUrl.value.trim(),
+      pollIntervalSeconds: Number(els.activePollInterval.value),
+      newBadgeMinutes: Number(els.activeNewBadge.value),
+    });
     const payload = await callJson(`/api/monitors/${monitorId}`, "PATCH", {
       name: els.activeMonitorName.value.trim(),
       searchUrl: els.activeMonitorUrl.value.trim(),
@@ -595,6 +1058,7 @@ els.activeMonitorForm.addEventListener("submit", async (event) => {
     });
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to save active monitor", { monitorId, error: error.message });
     alert(`Failed to save monitor: ${error.message}`);
   } finally {
     actionState.savingMonitor = false;
@@ -610,9 +1074,11 @@ els.pollMonitorBtn.addEventListener("click", async () => {
   actionState.pollingMonitor = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Triggering manual poll", { monitorId });
     await callJson(`/api/monitors/${monitorId}/poll-now`, "POST");
     await refreshDashboard();
   } catch (error) {
+    pushDebugLog("error", "Manual poll failed", { monitorId, error: error.message });
     alert(`Manual poll failed: ${error.message}`);
   } finally {
     actionState.pollingMonitor = false;
@@ -627,14 +1093,17 @@ els.deleteMonitorBtn.addEventListener("click", async () => {
     return;
   }
   if (!confirm(`Delete ${monitorName}? This removes its listing history.`)) {
+    pushDebugLog("info", "Delete monitor cancelled", { monitorId, monitorName });
     return;
   }
   actionState.deletingMonitor = true;
   applyLoadingStates();
   try {
+    pushDebugLog("info", "Deleting monitor", { monitorId, monitorName });
     const payload = await callJson(`/api/monitors/${monitorId}`, "DELETE");
     renderDashboard(payload);
   } catch (error) {
+    pushDebugLog("error", "Failed to delete monitor", { monitorId, error: error.message });
     alert(`Failed to delete monitor: ${error.message}`);
   } finally {
     actionState.deletingMonitor = false;
@@ -652,27 +1121,88 @@ els.listingSegments.addEventListener("click", (event) => {
     return;
   }
   appState.activeSegment = segment;
+  pushDebugLog("info", "Listing segment changed", { segment });
   if (appState.dashboard) {
     renderDashboard(appState.dashboard);
   }
 });
 
+if (els.listingSortBy) {
+  els.listingSortBy.addEventListener("change", (event) => {
+    const nextSort = event.target.value || "newest";
+    if (nextSort === appState.sortBy) {
+      return;
+    }
+    appState.sortBy = nextSort;
+    pushDebugLog("info", "Listing sort changed", { sortBy: nextSort });
+    if (appState.dashboard) {
+      renderActiveMonitor(appState.dashboard);
+    }
+  });
+}
+
+if (els.debugLogClearBtn) {
+  els.debugLogClearBtn.addEventListener("click", () => {
+    if (els.debugLogFeed) {
+      els.debugLogFeed.innerHTML = "";
+    }
+    pushDebugLog("info", "Debug log cleared.");
+  });
+}
+
+if (els.debugLogPauseBtn) {
+  els.debugLogPauseBtn.addEventListener("click", () => {
+    appState.debugLogPaused = !appState.debugLogPaused;
+    els.debugLogPauseBtn.textContent = appState.debugLogPaused ? "Resume" : "Pause";
+    if (!appState.debugLogPaused) {
+      pushDebugLog("info", "Debug log resumed.");
+    } else {
+      pushDebugLog("warn", "Debug log paused.");
+    }
+  });
+}
+
+els.listingFeed.addEventListener("click", (event) => {
+  const toggleButton = event.target.closest(".listing-expand-btn");
+  if (!toggleButton) {
+    return;
+  }
+  const listingId = toggleButton.dataset.listingId;
+  if (!listingId) {
+    return;
+  }
+  if (appState.expandedListingIds.has(listingId)) {
+    appState.expandedListingIds.delete(listingId);
+  } else {
+    appState.expandedListingIds.add(listingId);
+  }
+  if (appState.dashboard) {
+    renderActiveMonitor(appState.dashboard);
+  }
+});
+
 function connectSse() {
   const events = new EventSource("/api/events");
+  pushDebugLog("info", "SSE connection opened.");
   events.addEventListener("dashboard-update", (event) => {
     try {
       renderDashboard(JSON.parse(event.data));
+      pushDebugLog("ok", "SSE dashboard-update received.");
     } catch {
       // Ignore malformed payloads.
+      pushDebugLog("error", "Malformed SSE dashboard payload.");
     }
   });
   events.onerror = () => {
+    pushDebugLog("error", "SSE connection error. Reconnecting in 3s.");
     events.close();
     setTimeout(connectSse, 3000);
   };
 }
 
 refreshDashboard().catch((error) => {
+  pushDebugLog("error", "Initial dashboard load failed", { error: error.message });
   alert(`Failed to load dashboard: ${error.message}`);
 });
+pushDebugLog("info", "Initial UI ready.");
 connectSse();

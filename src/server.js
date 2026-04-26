@@ -3,9 +3,12 @@ const express = require("express");
 const { StateStore } = require("./state-store");
 const { scrapeAutoplius } = require("./scraper");
 const {
+  classifyListingChangesWithClaude,
   enrichListingsWithClaude,
   getClaudeAvailability,
   getClaudeApiKeySource,
+  normalizeListingsWithClaude,
+  scoreListingsQualityWithClaude,
   resolveAnthropicConfig,
 } = require("./anthropic-parser");
 
@@ -184,6 +187,88 @@ function buildDefaultClaudeSnapshot() {
   };
 }
 
+function buildListingFingerprint(listing) {
+  return JSON.stringify({
+    model: (listing?.model || "").toLowerCase(),
+    year: listing?.year || null,
+    price: (listing?.price || "").toLowerCase(),
+    city: (listing?.city || "").toLowerCase(),
+    country: (listing?.country || "").toLowerCase(),
+    title: (listing?.title || "").toLowerCase().slice(0, 120),
+  });
+}
+
+function detectReposts(effectiveListings, monitor) {
+  const repostsById = new Map();
+  if (!Array.isArray(effectiveListings) || !monitor) {
+    return repostsById;
+  }
+
+  const currentIds = new Set(effectiveListings.map((listing) => listing.id));
+  const staleByFingerprint = new Map();
+  for (const staleId of monitor.listingOrder || []) {
+    if (currentIds.has(staleId)) {
+      continue;
+    }
+    const staleListing = monitor.listingsById[staleId];
+    if (!staleListing) {
+      continue;
+    }
+    const fingerprint = buildListingFingerprint(staleListing);
+    if (fingerprint === "{}") {
+      continue;
+    }
+    staleByFingerprint.set(fingerprint, staleId);
+  }
+
+  for (const listing of effectiveListings) {
+    const fingerprint = buildListingFingerprint(listing);
+    const previousId = staleByFingerprint.get(fingerprint);
+    if (previousId && previousId !== listing.id) {
+      repostsById.set(listing.id, {
+        repostOfId: previousId,
+        reason: "Likely repost of a previously seen listing with matching fingerprint.",
+      });
+    }
+  }
+  return repostsById;
+}
+
+function computeChangedPairs(effectiveListings, monitor) {
+  const changedPairs = [];
+  if (!Array.isArray(effectiveListings) || !monitor) {
+    return changedPairs;
+  }
+  for (const incoming of effectiveListings) {
+    const existing = monitor.listingsById?.[incoming.id];
+    if (!existing) {
+      continue;
+    }
+    const changed =
+      existing.title !== incoming.title ||
+      existing.price !== incoming.price ||
+      existing.model !== incoming.model ||
+      existing.year !== incoming.year ||
+      existing.city !== incoming.city ||
+      existing.country !== incoming.country ||
+      existing.updatedText !== incoming.updatedText ||
+      existing.imageUrl !== incoming.imageUrl ||
+      existing.url !== incoming.url;
+    if (!changed) {
+      continue;
+    }
+    changedPairs.push({
+      id: incoming.id,
+      before: existing,
+      after: {
+        ...existing,
+        ...incoming,
+      },
+    });
+  }
+  return changedPairs;
+}
+
 function ensureMonitorExists(monitorId) {
   const state = store.getState();
   return Boolean(state.monitorsById[monitorId]);
@@ -205,14 +290,17 @@ async function runPollCycle(monitorId, reason) {
     }
 
     const scrapeResult = await scrapeAutoplius(monitorBefore.searchUrl);
-    let effectiveListings = scrapeResult.listings;
-    let claudeEnrichment = buildDefaultClaudeSnapshot();
-
+    const claudeSettings = store.getState().settings?.claude || {};
     const claudeEnabled = Boolean(store.getState().settings?.claudeParsingEnabled);
+    const normalization = await normalizeListingsWithClaude(scrapeResult.listings, {
+      settings: claudeSettings,
+      allowClaude: claudeEnabled,
+    });
+    let effectiveListings = normalization.listings;
+    let claudeEnrichment = buildDefaultClaudeSnapshot();
     if (claudeEnabled) {
-      const claudeSettings = store.getState().settings?.claude || {};
       try {
-        claudeEnrichment = await enrichListingsWithClaude(scrapeResult.listings, {
+        claudeEnrichment = await enrichListingsWithClaude(effectiveListings, {
           settings: claudeSettings,
         });
       } catch (claudeError) {
@@ -224,6 +312,19 @@ async function runPollCycle(monitorId, reason) {
       }
       effectiveListings = claudeEnrichment.listings;
     }
+    const riskAssessment = await scoreListingsQualityWithClaude(effectiveListings, {
+      settings: claudeSettings,
+      allowClaude: claudeEnabled,
+    });
+    effectiveListings = riskAssessment.listings;
+
+    const repostsById = detectReposts(effectiveListings, monitorBefore);
+    const changedPairs = computeChangedPairs(effectiveListings, monitorBefore);
+    const changedIds = new Set(changedPairs.map((pair) => pair.id));
+    const classifiedChanges = await classifyListingChangesWithClaude(changedPairs, {
+      settings: claudeSettings,
+      allowClaude: claudeEnabled,
+    });
 
     const scrapeIds = new Set(effectiveListings.map((item) => item.id));
     const addedIds = [];
@@ -238,34 +339,81 @@ async function runPollCycle(monitorId, reason) {
       for (const incoming of effectiveListings) {
         const existing = monitor.listingsById[incoming.id];
         if (!existing) {
+          const repost = repostsById.get(incoming.id);
           monitor.listingsById[incoming.id] = {
             ...incoming,
             firstSeenAt: pollStartedAt,
             lastSeenAt: pollStartedAt,
             lastChangedAt: pollStartedAt,
             isNew: true,
+            repostOfId: repost?.repostOfId || null,
+            changeType: repost ? "repost" : null,
+            changeReason: repost?.reason || null,
+            changeConfidence: repost ? 0.85 : null,
+            changedBy: repost ? "deterministic" : null,
+            riskScore: Number.isFinite(Number(incoming.riskScore)) ? Number(incoming.riskScore) : null,
+            riskLevel: incoming.riskLevel || null,
+            riskReasons: Array.isArray(incoming.riskReasons) ? incoming.riskReasons : [],
+            riskConfidence:
+              Number.isFinite(Number(incoming.riskConfidence)) ? Number(incoming.riskConfidence) : null,
+            riskScoredBy: incoming.riskScoredBy || null,
           };
           monitor.listingOrder.unshift(incoming.id);
           addedIds.push(incoming.id);
           continue;
         }
 
-        const changed =
-          existing.title !== incoming.title ||
-          existing.price !== incoming.price ||
-          existing.updatedText !== incoming.updatedText ||
-          existing.imageUrl !== incoming.imageUrl ||
-          existing.url !== incoming.url;
+        const changed = changedIds.has(incoming.id);
 
         monitor.listingsById[incoming.id] = {
           ...existing,
           ...incoming,
           lastSeenAt: pollStartedAt,
           lastChangedAt: changed ? pollStartedAt : existing.lastChangedAt,
+          changeType: existing.changeType || null,
+          changeReason: existing.changeReason || null,
+          changeConfidence: existing.changeConfidence || null,
+          changedBy: existing.changedBy || null,
+          repostOfId: existing.repostOfId || null,
+          riskScore:
+            Number.isFinite(Number(incoming.riskScore)) || Number.isFinite(Number(existing.riskScore))
+              ? Number.isFinite(Number(incoming.riskScore))
+                ? Number(incoming.riskScore)
+                : Number(existing.riskScore)
+              : null,
+          riskLevel: incoming.riskLevel || existing.riskLevel || null,
+          riskReasons: Array.isArray(incoming.riskReasons)
+            ? incoming.riskReasons
+            : Array.isArray(existing.riskReasons)
+              ? existing.riskReasons
+              : [],
+          riskConfidence:
+            Number.isFinite(Number(incoming.riskConfidence)) || Number.isFinite(Number(existing.riskConfidence))
+              ? Number.isFinite(Number(incoming.riskConfidence))
+                ? Number(incoming.riskConfidence)
+                : Number(existing.riskConfidence)
+              : null,
+          riskScoredBy: incoming.riskScoredBy || existing.riskScoredBy || null,
         };
 
         if (changed) {
           updatedIds.push(incoming.id);
+          const classification = classifiedChanges.byId.get(incoming.id);
+          if (classification) {
+            monitor.listingsById[incoming.id].changeType = classification.type || null;
+            monitor.listingsById[incoming.id].changeReason = classification.reason || null;
+            monitor.listingsById[incoming.id].changeConfidence = Number.isFinite(
+              Number(classification.confidence)
+            )
+              ? Number(classification.confidence)
+              : null;
+            monitor.listingsById[incoming.id].changedBy = classification.source || "deterministic";
+          } else {
+            monitor.listingsById[incoming.id].changeType = "details_update";
+            monitor.listingsById[incoming.id].changeReason = "Listing details changed.";
+            monitor.listingsById[incoming.id].changeConfidence = 0.6;
+            monitor.listingsById[incoming.id].changedBy = "deterministic";
+          }
         }
       }
 
@@ -292,6 +440,14 @@ async function runPollCycle(monitorId, reason) {
         reason,
         parserMode: claudeEnabled ? "deterministic+claude-optional" : "deterministic-only",
         claude: claudeEnrichment,
+        normalization,
+        riskAssessment,
+        changeClassification: {
+          used: classifiedChanges.used,
+          available: classifiedChanges.available,
+          message: classifiedChanges.message,
+          apiKeySource: classifiedChanges.apiKeySource,
+        },
       };
       monitor.updatedAt = pollStartedAt;
       return draft;
@@ -305,6 +461,23 @@ async function runPollCycle(monitorId, reason) {
       monitor.lastPoll = createLastPollErrorSnapshot(monitor.lastPoll, error.message, reason);
       monitor.lastPoll.claude = buildDefaultClaudeSnapshot();
       monitor.lastPoll.parserMode = "deterministic-only";
+      monitor.lastPoll.normalization = {
+        used: false,
+        available: false,
+        deterministicUpdated: 0,
+        message: "Normalization skipped due to poll error.",
+      };
+      monitor.lastPoll.riskAssessment = {
+        used: false,
+        available: false,
+        assessedCount: 0,
+        message: "Risk scoring skipped due to poll error.",
+      };
+      monitor.lastPoll.changeClassification = {
+        used: false,
+        available: false,
+        message: "Change classification skipped due to poll error.",
+      };
       monitor.updatedAt = toIsoNow();
       return draft;
     });
