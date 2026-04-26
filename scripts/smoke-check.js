@@ -50,6 +50,12 @@ function run() {
   assert(/id="debug-log-pause-btn"/.test(html), "debug pause button missing from index.html");
   assert(/function sanitizeDebugPayload\(/.test(appJs), "sanitizeDebugPayload helper missing");
   assert(/sensitiveKeys\s*=\s*new Set\(/.test(appJs), "sensitive key masking set missing");
+  assert(/function buildRiskBadge\(/.test(appJs), "Risk badge helper missing in app.js");
+  assert(/riskAssessment/.test(appJs), "Risk assessment summary integration missing in app.js");
+  assert(/scoreListingsQualityWithClaude/.test(read("src/server.js")), "Server risk scoring pipeline missing");
+  assert(/\.badge\.risk-high/.test(css), "Risk-high badge style missing");
+  assert(/\.badge\.risk-medium/.test(css), "Risk-medium badge style missing");
+  assert(/\.badge\.risk-low/.test(css), "Risk-low badge style missing");
 
   console.log("Smoke checks passed.");
 }

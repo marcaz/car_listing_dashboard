@@ -8,6 +8,7 @@ const CHANGE_TYPES = new Set([
   "photo_update",
   "link_update",
 ]);
+const RISK_LEVELS = new Set(["low", "medium", "high"]);
 
 function normalizeWhitespace(value) {
   return (value || "").replace(/\s+/g, " ").trim();
@@ -299,6 +300,113 @@ function sanitizeLocationRecoveryResult(raw) {
     confidence: Number.isFinite(Number(raw.confidence))
       ? Math.max(0, Math.min(1, Number(raw.confidence)))
       : null,
+  };
+}
+
+function riskLevelFromScore(score) {
+  if (score >= 55) {
+    return "high";
+  }
+  if (score >= 25) {
+    return "medium";
+  }
+  return "low";
+}
+
+function sanitizeRiskReasons(rawReasons) {
+  if (Array.isArray(rawReasons)) {
+    return rawReasons
+      .map((item) => sanitizeString(item))
+      .filter(Boolean)
+      .map((reason) => reason.slice(0, 140))
+      .slice(0, 5);
+  }
+  const single = sanitizeString(rawReasons);
+  return single ? [single.slice(0, 140)] : [];
+}
+
+function sanitizeRiskAssessmentResult(raw) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const numericScore = Number(raw.score);
+  if (!Number.isFinite(numericScore)) {
+    return null;
+  }
+  const score = Math.max(0, Math.min(100, Math.round(numericScore)));
+  const levelCandidate = sanitizeString(raw.level);
+  const level = levelCandidate && RISK_LEVELS.has(levelCandidate) ? levelCandidate : riskLevelFromScore(score);
+  const reasons = sanitizeRiskReasons(raw.reasons);
+  return {
+    score,
+    level,
+    reasons: reasons.length > 0 ? reasons : ["No strong risk indicators found."],
+    confidence: Number.isFinite(Number(raw.confidence))
+      ? Math.max(0, Math.min(1, Number(raw.confidence)))
+      : null,
+  };
+}
+
+function scoreListingQualityDeterministic(listing) {
+  let score = 0;
+  const reasons = [];
+  const add = (points, reason) => {
+    score += points;
+    if (reason && reasons.length < 5) {
+      reasons.push(reason);
+    }
+  };
+
+  if (!sanitizeString(listing?.model)) {
+    add(16, "Model is missing.");
+  }
+  if (!parseEuroAmount(listing?.price)) {
+    add(22, "Price is missing or not parseable.");
+  }
+  if (!sanitizeString(listing?.city)) {
+    add(14, "City is missing.");
+  }
+  if (!sanitizeString(listing?.country)) {
+    add(8, "Country is missing.");
+  }
+  const parseConfidence = Number(listing?.parseConfidence);
+  if (Number.isFinite(parseConfidence)) {
+    if (parseConfidence < 0.35) {
+      add(18, "Parser confidence is very low.");
+    } else if (parseConfidence < 0.55) {
+      add(10, "Parser confidence is below threshold.");
+    }
+  } else {
+    add(6, "Parser confidence is unavailable.");
+  }
+  const year = sanitizeYear(listing?.year);
+  if (year && year < 2005) {
+    add(6, "Vehicle year is relatively old.");
+  }
+  const priceAmount = parseEuroAmount(listing?.price);
+  if (Number.isFinite(priceAmount)) {
+    if (priceAmount < 3500) {
+      add(18, "Price is unusually low and may require additional checks.");
+    } else if (priceAmount < 7000) {
+      add(9, "Price is lower than expected; verify listing details.");
+    } else if (priceAmount > 120000) {
+      add(7, "Price is unusually high.");
+    }
+  }
+  if (!sanitizeString(listing?.imageUrl)) {
+    add(4, "Listing has no image.");
+  }
+  if (listing?.isStale) {
+    add(8, "Listing is missing from latest scan.");
+  }
+
+  const normalizedScore = Math.max(0, Math.min(100, Math.round(score)));
+  const normalizedReasons = reasons.length > 0 ? reasons : ["Listing data appears consistent."];
+  return {
+    score: normalizedScore,
+    level: riskLevelFromScore(normalizedScore),
+    reasons: normalizedReasons,
+    confidence: Math.max(0.55, Math.min(0.95, 0.58 + normalizedReasons.length * 0.07)),
   };
 }
 
@@ -789,6 +897,120 @@ async function normalizeListingsWithClaude(listings, options = {}) {
   };
 }
 
+async function scoreListingsQualityWithClaude(listings, options = {}) {
+  const allowClaude = options.allowClaude !== false;
+  const config = resolveAnthropicConfig(options.settings || {});
+  const assessed = Array.isArray(listings) ? listings.map((listing) => ({ ...listing })) : [];
+
+  let deterministicAssessed = 0;
+  for (const listing of assessed) {
+    const deterministic = scoreListingQualityDeterministic(listing);
+    listing.riskScore = deterministic.score;
+    listing.riskLevel = deterministic.level;
+    listing.riskReasons = deterministic.reasons;
+    listing.riskConfidence = deterministic.confidence;
+    listing.riskScoredBy = "deterministic";
+    deterministicAssessed += 1;
+  }
+
+  if (!allowClaude || !config.apiKey || assessed.length === 0) {
+    return {
+      listings: assessed,
+      used: false,
+      available: allowClaude && Boolean(config.apiKey),
+      assessedCount: deterministicAssessed,
+      message: !allowClaude
+        ? "Claude risk scoring disabled; deterministic risk scoring only."
+        : config.apiKey
+          ? "No listings for risk scoring."
+          : "Claude key unavailable; deterministic risk scoring only.",
+      apiKeySource: config.apiKeySource,
+    };
+  }
+
+  const candidates = assessed
+    .filter(
+      (listing) =>
+        Number(listing.riskScore || 0) >= 30 ||
+        !listing.model ||
+        !listing.price ||
+        !listing.city ||
+        !listing.country
+    )
+    .slice(0, config.maxCandidates);
+
+  let claudeApplied = 0;
+  for (const listing of candidates) {
+    try {
+      const prompt = {
+        task: "Assess listing quality risk score",
+        rules: [
+          "Return JSON only.",
+          "score must be integer 0..100 where higher means higher risk.",
+          "level must be one of: low, medium, high.",
+          "reasons must be short factual strings.",
+          "Do not invent facts not present in context.",
+        ],
+        output_schema: {
+          score: "number",
+          level: "string",
+          reasons: "string[]",
+          confidence: "number|null",
+        },
+        listing_context: {
+          id: listing.id,
+          title: listing.title || null,
+          model: listing.model || null,
+          year: listing.year || null,
+          price: listing.price || null,
+          city: listing.city || null,
+          country: listing.country || null,
+          parseConfidence: listing.parseConfidence ?? null,
+          updatedText: listing.updatedText || null,
+          hasImage: Boolean(listing.imageUrl),
+          url: listing.url || null,
+        },
+        deterministic_assessment: {
+          score: listing.riskScore,
+          level: listing.riskLevel,
+          reasons: listing.riskReasons,
+          confidence: listing.riskConfidence,
+        },
+      };
+      const raw = await callAnthropicJson({ config, taskPayload: prompt });
+      const sanitized = sanitizeRiskAssessmentResult(raw);
+      if (!sanitized) {
+        continue;
+      }
+      if (sanitized.confidence !== null && sanitized.confidence < config.minConfidence) {
+        continue;
+      }
+      listing.riskScore = sanitized.score;
+      listing.riskLevel = sanitized.level;
+      listing.riskReasons = sanitized.reasons;
+      listing.riskConfidence =
+        sanitized.confidence !== null ? sanitized.confidence : Number(listing.riskConfidence || 0);
+      listing.riskScoredBy = "claude";
+      claudeApplied += 1;
+    } catch {
+      // Keep deterministic risk assessment for this listing.
+    }
+  }
+
+  return {
+    listings: assessed,
+    used: claudeApplied > 0,
+    available: true,
+    assessedCount: deterministicAssessed,
+    claudeApplied,
+    message:
+      claudeApplied > 0
+        ? `Risk scored ${deterministicAssessed} listing(s), ${claudeApplied} refined by Claude.`
+        : `Deterministically risk-scored ${deterministicAssessed} listing(s).`,
+    apiKeySource: config.apiKeySource,
+  };
+}
+
 module.exports = {
   classifyChangeDeterministic,
   classifyListingChangesWithClaude,
@@ -796,5 +1018,7 @@ module.exports = {
   getClaudeAvailability,
   getClaudeApiKeySource,
   normalizeListingsWithClaude,
+  scoreListingsQualityWithClaude,
+  scoreListingQualityDeterministic,
   resolveAnthropicConfig,
 };

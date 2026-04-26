@@ -462,6 +462,30 @@ function formatChangeType(value) {
   return labels[normalized] || "-";
 }
 
+function formatRiskLevel(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  const labels = {
+    low: "Low risk",
+    medium: "Medium risk",
+    high: "High risk",
+  };
+  return labels[normalized] || "-";
+}
+
+function buildRiskBadge(listing) {
+  const level = (listing?.riskLevel || "").toString().trim().toLowerCase();
+  const score = Number(listing?.riskScore);
+  if (!level && !Number.isFinite(score)) {
+    return null;
+  }
+  const badge = document.createElement("span");
+  const normalizedLevel = level || (score >= 55 ? "high" : score >= 25 ? "medium" : "low");
+  badge.className = `badge risk risk-${normalizedLevel}`;
+  const scoreLabel = Number.isFinite(score) ? ` ${Math.round(score)}` : "";
+  badge.textContent = `RISK${scoreLabel}`;
+  return badge;
+}
+
 function buildChangeBadge(changeType) {
   const normalized = (changeType || "").toString().trim().toLowerCase();
   const specs = {
@@ -551,6 +575,16 @@ function buildListingDetails(listing, model, year, price, locationLabel) {
     makeDetailItem("Change reason", listing.changeReason || "-"),
     makeDetailItem("Change confidence", formatConfidence(listing.changeConfidence)),
     makeDetailItem("Classified by", listing.changedBy || "-"),
+    makeDetailItem("Risk score", Number.isFinite(Number(listing.riskScore)) ? String(Math.round(Number(listing.riskScore))) : "-"),
+    makeDetailItem("Risk level", formatRiskLevel(listing.riskLevel)),
+    makeDetailItem(
+      "Risk reasons",
+      Array.isArray(listing.riskReasons) && listing.riskReasons.length > 0
+        ? listing.riskReasons.join(" | ")
+        : "-"
+    ),
+    makeDetailItem("Risk confidence", formatConfidence(listing.riskConfidence)),
+    makeDetailItem("Risk scored by", listing.riskScoredBy || "-"),
     makeDetailItem("Repost of ID", listing.repostOfId || "-"),
     makeDetailItem("Title", listing.title || "-"),
     makeDetailItem("Updated text", listing.updatedText || "-"),
@@ -668,6 +702,10 @@ function listingCard(listing) {
   if (changeBadge) {
     badges.appendChild(changeBadge);
   }
+  const riskBadge = buildRiskBadge(listing);
+  if (riskBadge) {
+    badges.appendChild(riskBadge);
+  }
 
   const toggleBtn = document.createElement("button");
   toggleBtn.type = "button";
@@ -773,6 +811,7 @@ function renderActiveMonitor(payload) {
   }
 
   const normalizationSummary = activeMonitor.lastPoll?.normalization;
+  const riskSummary = activeMonitor.lastPoll?.riskAssessment;
   const classificationSummary = activeMonitor.lastPoll?.changeClassification;
   const normalizationText =
     normalizationSummary && typeof normalizationSummary.message === "string"
@@ -782,7 +821,11 @@ function renderActiveMonitor(payload) {
     classificationSummary && typeof classificationSummary.message === "string"
       ? classificationSummary.message
       : "Change classification unavailable.";
-  els.segmentSummary.textContent = `${filteredListings.length} shown / ${allListings.length} total · ${activeMonitor.newListings} marked NEW · ${activeMonitor.staleListings} stale · ${normalizationText} · ${classificationText}`;
+  const riskText =
+    riskSummary && typeof riskSummary.message === "string"
+      ? riskSummary.message
+      : "Risk scoring unavailable.";
+  els.segmentSummary.textContent = `${filteredListings.length} shown / ${allListings.length} total · ${activeMonitor.newListings} marked NEW · ${activeMonitor.staleListings} stale · ${normalizationText} · ${riskText} · ${classificationText}`;
 
   els.listingFeed.innerHTML = "";
   if (filteredListings.length === 0) {
@@ -817,6 +860,7 @@ function renderDashboard(payload) {
   if (activeMonitor?.lastPoll) {
     const claude = activeMonitor.lastPoll.claude || {};
     const normalization = activeMonitor.lastPoll.normalization || {};
+    const riskAssessment = activeMonitor.lastPoll.riskAssessment || {};
     const classification = activeMonitor.lastPoll.changeClassification || {};
     pushDebugLog(
       "info",
@@ -826,6 +870,7 @@ function renderDashboard(payload) {
         claudeUsed: Boolean(claude.used),
         claudeMessage: claude.message || null,
         normalizationMessage: normalization.message || null,
+        riskAssessmentMessage: riskAssessment.message || null,
         changeClassificationMessage: classification.message || null,
       }
     );

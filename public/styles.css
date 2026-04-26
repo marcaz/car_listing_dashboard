@@ -648,6 +648,25 @@ dd {
   font-weight: 700;
 }
 
+.badge.risk {
+  font-weight: 700;
+}
+
+.badge.risk-low {
+  color: #052e16;
+  background: #86efac;
+}
+
+.badge.risk-medium {
+  color: #422006;
+  background: #fbbf24;
+}
+
+.badge.risk-high {
+  color: #fef2f2;
+  background: #b91c1c;
+}
+
 @media (max-width: 760px) {
   .listings-toolbar {
     align-items: stretch;

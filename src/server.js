@@ -8,6 +8,7 @@ const {
   getClaudeAvailability,
   getClaudeApiKeySource,
   normalizeListingsWithClaude,
+  scoreListingsQualityWithClaude,
   resolveAnthropicConfig,
 } = require("./anthropic-parser");
 
@@ -299,7 +300,7 @@ async function runPollCycle(monitorId, reason) {
     let claudeEnrichment = buildDefaultClaudeSnapshot();
     if (claudeEnabled) {
       try {
-        claudeEnrichment = await enrichListingsWithClaude(normalization.listings, {
+        claudeEnrichment = await enrichListingsWithClaude(effectiveListings, {
           settings: claudeSettings,
         });
       } catch (claudeError) {
@@ -311,6 +312,11 @@ async function runPollCycle(monitorId, reason) {
       }
       effectiveListings = claudeEnrichment.listings;
     }
+    const riskAssessment = await scoreListingsQualityWithClaude(effectiveListings, {
+      settings: claudeSettings,
+      allowClaude: claudeEnabled,
+    });
+    effectiveListings = riskAssessment.listings;
 
     const repostsById = detectReposts(effectiveListings, monitorBefore);
     const changedPairs = computeChangedPairs(effectiveListings, monitorBefore);
@@ -345,6 +351,12 @@ async function runPollCycle(monitorId, reason) {
             changeReason: repost?.reason || null,
             changeConfidence: repost ? 0.85 : null,
             changedBy: repost ? "deterministic" : null,
+            riskScore: Number.isFinite(Number(incoming.riskScore)) ? Number(incoming.riskScore) : null,
+            riskLevel: incoming.riskLevel || null,
+            riskReasons: Array.isArray(incoming.riskReasons) ? incoming.riskReasons : [],
+            riskConfidence:
+              Number.isFinite(Number(incoming.riskConfidence)) ? Number(incoming.riskConfidence) : null,
+            riskScoredBy: incoming.riskScoredBy || null,
           };
           monitor.listingOrder.unshift(incoming.id);
           addedIds.push(incoming.id);
@@ -363,6 +375,25 @@ async function runPollCycle(monitorId, reason) {
           changeConfidence: existing.changeConfidence || null,
           changedBy: existing.changedBy || null,
           repostOfId: existing.repostOfId || null,
+          riskScore:
+            Number.isFinite(Number(incoming.riskScore)) || Number.isFinite(Number(existing.riskScore))
+              ? Number.isFinite(Number(incoming.riskScore))
+                ? Number(incoming.riskScore)
+                : Number(existing.riskScore)
+              : null,
+          riskLevel: incoming.riskLevel || existing.riskLevel || null,
+          riskReasons: Array.isArray(incoming.riskReasons)
+            ? incoming.riskReasons
+            : Array.isArray(existing.riskReasons)
+              ? existing.riskReasons
+              : [],
+          riskConfidence:
+            Number.isFinite(Number(incoming.riskConfidence)) || Number.isFinite(Number(existing.riskConfidence))
+              ? Number.isFinite(Number(incoming.riskConfidence))
+                ? Number(incoming.riskConfidence)
+                : Number(existing.riskConfidence)
+              : null,
+          riskScoredBy: incoming.riskScoredBy || existing.riskScoredBy || null,
         };
 
         if (changed) {
@@ -410,6 +441,7 @@ async function runPollCycle(monitorId, reason) {
         parserMode: claudeEnabled ? "deterministic+claude-optional" : "deterministic-only",
         claude: claudeEnrichment,
         normalization,
+        riskAssessment,
         changeClassification: {
           used: classifiedChanges.used,
           available: classifiedChanges.available,
@@ -434,6 +466,12 @@ async function runPollCycle(monitorId, reason) {
         available: false,
         deterministicUpdated: 0,
         message: "Normalization skipped due to poll error.",
+      };
+      monitor.lastPoll.riskAssessment = {
+        used: false,
+        available: false,
+        assessedCount: 0,
+        message: "Risk scoring skipped due to poll error.",
       };
       monitor.lastPoll.changeClassification = {
         used: false,
