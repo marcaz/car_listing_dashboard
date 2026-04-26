@@ -42,12 +42,11 @@ const els = {
   pollingIndicator: document.getElementById("polling-indicator"),
   pollingText: document.getElementById("polling-text"),
   statusLastPoll: document.getElementById("status-last-poll"),
-  statusSource: document.getElementById("status-source"),
   statusMessage: document.getElementById("status-message"),
+  claudeStateInline: document.getElementById("claude-state-inline"),
   activeMonitorStatusGrid: document.getElementById("active-monitor-status-grid"),
   statusItemLastPoll: document.getElementById("status-item-last-poll"),
   statusItemResult: document.getElementById("status-item-result"),
-  statusItemMode: document.getElementById("status-item-mode"),
   listingSegments: document.getElementById("listing-segments"),
   listingSortBy: document.getElementById("listing-sort"),
   listingsStatsStrip: document.getElementById("listings-stats-strip"),
@@ -244,15 +243,10 @@ function applyActiveMonitorPollStatusDisplay() {
   const grid = els.activeMonitorStatusGrid;
   const lastPollItem = els.statusItemLastPoll;
   const resultItem = els.statusItemResult;
-  const modeItem = els.statusItemMode;
-  const modeDd = els.statusSource;
+  const claudeStateInline = els.claudeStateInline;
   const collapsed = appState.monitorSettingsCollapsed;
   const settings = appState.dashboard?.settings;
-  const activeMonitor = appState.dashboard?.activeMonitor;
 
-  if (grid) {
-    grid.classList.toggle("status-grid--monitor-collapsed", collapsed);
-  }
   for (const el of [lastPollItem, resultItem]) {
     if (el) {
       el.hidden = collapsed;
@@ -260,36 +254,13 @@ function applyActiveMonitorPollStatusDisplay() {
     }
   }
 
-  if (!modeDd) {
+  if (!claudeStateInline) {
     return;
   }
 
-  modeDd.innerHTML = "";
+  claudeStateInline.innerHTML = "";
   const collapsedMode = formatCollapsedClaudeModeLabel(settings);
-  if (modeItem) {
-    modeItem.classList.toggle("status-item-mode-on", collapsed && collapsedMode.tone === "on");
-    modeItem.classList.toggle("status-item-mode-off", collapsed && collapsedMode.tone === "off");
-    modeItem.classList.toggle(
-      "status-item-mode-unavailable",
-      collapsed && collapsedMode.tone === "unavailable"
-    );
-  }
-
-  if (!activeMonitor) {
-    if (collapsed) {
-      renderCollapsedModeToken(modeDd, collapsedMode);
-    } else {
-      modeDd.textContent = "-";
-    }
-    return;
-  }
-
-  const pollStatus = activeMonitor.lastPoll || {};
-  if (collapsed) {
-    renderCollapsedModeToken(modeDd, collapsedMode);
-  } else {
-    modeDd.textContent = formatCompactModeLabel(pollStatus.source || "n/a");
-  }
+  renderCollapsedModeToken(claudeStateInline, collapsedMode);
 }
 
 function renderCollapsedModeToken(target, modeState) {
@@ -308,21 +279,6 @@ function renderCollapsedModeToken(target, modeState) {
   label.textContent = text;
   token.append(dot, label);
   target.appendChild(token);
-}
-
-function formatCompactModeLabel(mode) {
-  const text = String(mode || "").trim();
-  if (!text || text === "-" || text === "n/a") {
-    return "N/A";
-  }
-  const normalized = text.toLowerCase();
-  if (normalized.includes("claude") || normalized.includes("ai")) {
-    return "AI";
-  }
-  if (normalized.includes("deterministic")) {
-    return "Deterministic";
-  }
-  return text;
 }
 
 function formatCompactResultLabel(status, message) {
