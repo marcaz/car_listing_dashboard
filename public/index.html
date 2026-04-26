@@ -37,10 +37,62 @@
         </label>
       </div>
     </header>
+    <section class="monitor-tabs-shell">
+      <div class="monitor-tabs-head">
+        <div class="monitor-tabs-title-row">
+          <h1>Monitors</h1>
+          <span id="monitor-tabs-count" class="count-pill">0</span>
+        </div>
+        <button
+          id="monitor-add-toggle-btn"
+          type="button"
+          class="btn small"
+          aria-expanded="false"
+          aria-controls="monitor-add-panel"
+        >
+          New monitor
+        </button>
+      </div>
+      <p class="muted monitors-hint">Switch monitors quickly using tabs. Add new ones when needed.</p>
+      <div id="monitor-tabs" class="monitor-tabs-list" role="tablist" aria-label="Configured monitors"></div>
+
+      <section id="monitor-add-panel" class="monitor-add-panel" hidden>
+        <div class="monitor-add-panel-head">
+          <h2>Add monitor</h2>
+          <button id="monitor-add-close-btn" type="button" class="btn secondary small">
+            Close
+          </button>
+        </div>
+        <form id="add-monitor-form">
+          <label>
+            Monitor name
+            <input id="add-monitor-name" type="text" placeholder="BMW X3 M 2020-2022" />
+          </label>
+          <label>
+            Search URL
+            <input id="add-monitor-url" type="url" required placeholder="https://autoplius.lt/..." />
+          </label>
+          <div class="row">
+            <label>
+              Poll interval (s)
+              <input id="add-poll-interval" type="number" min="15" value="60" />
+            </label>
+            <label>
+              NEW window (min)
+              <input id="add-new-badge" type="number" min="1" value="120" />
+            </label>
+          </div>
+          <button id="add-monitor-btn" type="submit" class="btn">
+            <span class="btn-label">Create monitor</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+      </section>
+    </section>
     <main class="layout">
       <aside class="card monitors-panel">
         <div class="panel-head">
-          <h1>Monitors</h1>
+          <h1>Global settings</h1>
           <div class="panel-head-actions">
             <button
               id="monitor-panel-toggle-btn"
@@ -50,40 +102,9 @@
             >
               Hide settings
             </button>
-            <span id="monitors-count" class="count-pill">0</span>
           </div>
         </div>
-        <p class="muted monitors-hint">Track multiple search URLs at the same time.</p>
-
-        <div id="monitor-list" class="monitor-list" aria-label="Configured monitors"></div>
-
-        <section class="sub-card">
-          <h2>Add monitor</h2>
-          <form id="add-monitor-form">
-            <label>
-              Monitor name
-              <input id="add-monitor-name" type="text" placeholder="BMW X3 M 2020-2022" />
-            </label>
-            <label>
-              Search URL
-              <input id="add-monitor-url" type="url" required placeholder="https://autoplius.lt/..." />
-            </label>
-            <div class="row">
-              <label>
-                Poll interval (s)
-                <input id="add-poll-interval" type="number" min="15" value="60" />
-              </label>
-              <label>
-                NEW window (min)
-                <input id="add-new-badge" type="number" min="1" value="120" />
-              </label>
-            </div>
-            <button id="add-monitor-btn" type="submit" class="btn">
-              <span class="btn-label">Add monitor</span>
-              <span class="btn-spinner" aria-hidden="true"></span>
-            </button>
-          </form>
-        </section>
+        <p class="muted monitors-hint">Adjust parser-related settings for all monitors.</p>
 
         <section class="sub-card">
           <h2>Parser mode</h2>

@@ -4,8 +4,11 @@ const els = {
   topbarPollDot: document.getElementById("topbar-poll-dot"),
   topbarPollState: document.getElementById("topbar-poll-state"),
   topbarListingCount: document.getElementById("topbar-listing-count"),
-  monitorList: document.getElementById("monitor-list"),
-  monitorsCount: document.getElementById("monitors-count"),
+  monitorTabs: document.getElementById("monitor-tabs"),
+  monitorTabsCount: document.getElementById("monitor-tabs-count"),
+  monitorAddToggleBtn: document.getElementById("monitor-add-toggle-btn"),
+  monitorAddCloseBtn: document.getElementById("monitor-add-close-btn"),
+  monitorAddPanel: document.getElementById("monitor-add-panel"),
   claudeToggleBtn: document.getElementById("claude-toggle-btn"),
   claudeStatusText: document.getElementById("claude-status-text"),
   claudeSettingsForm: document.getElementById("claude-settings-form"),
@@ -74,6 +77,7 @@ const appState = {
   debugLogPaused: false,
   mobilePanelCollapsed: true,
   monitorSettingsCollapsed: true,
+  monitorAddPanelOpen: false,
   dashboardTheme: "ghost",
 };
 
@@ -145,7 +149,7 @@ function isSmartphoneViewport() {
 }
 
 function applyMobilePanelState() {
-  if (!els.monitorList) {
+  if (!els.monitorTabs) {
     return;
   }
   const mobile = isSmartphoneViewport();
@@ -165,6 +169,17 @@ function applyMobilePanelState() {
       ? "Hide monitor settings"
       : "Show monitor settings";
   }
+}
+
+function applyMonitorAddPanelState() {
+  if (!els.monitorAddPanel || !els.monitorAddToggleBtn) {
+    return;
+  }
+  const open = Boolean(appState.monitorAddPanelOpen);
+  els.monitorAddPanel.hidden = !open;
+  els.monitorAddPanel.setAttribute("aria-hidden", String(!open));
+  els.monitorAddToggleBtn.setAttribute("aria-expanded", String(open));
+  els.monitorAddToggleBtn.textContent = open ? "Close new monitor form" : "New monitor";
 }
 
 function applyMonitorSettingsPanelState() {
@@ -760,24 +775,18 @@ function buildListingDetails(listing, model, year, price, locationLabel) {
 function monitorCard(monitor, isActive) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `monitor-item${isActive ? " active" : ""}`;
+  button.className = `monitor-tab${isActive ? " active" : ""}`;
   button.dataset.monitorId = monitor.id;
-
-  const pollingLabel = monitor.pollingInProgress ? "Polling..." : "Idle";
+  button.setAttribute("aria-selected", String(isActive));
+  const monitorName = String(monitor.name || "Monitor");
+  const pollingIndicator = monitor.pollingInProgress ? '<span class="monitor-tab-dot polling" aria-hidden="true"></span>' : "";
   button.innerHTML = `
-    <div class="name-row">
-      <strong>${monitor.name}</strong>
-      <span class="count-pill">${monitor.newListings} new</span>
-    </div>
-    <div class="monitor-meta">
-      <span>${monitor.totalListings} listings</span>
-      <span>${Math.round((monitor.pollIntervalMs || 0) / 1000)}s</span>
-      <span>${pollingLabel}</span>
-    </div>
-    <div class="monitor-meta">
-      <span>${formatDateTime(monitor.lastPoll?.at)}</span>
-      <span>${monitor.lastPoll?.status || "never"}</span>
-    </div>
+    <span class="monitor-tab-name">${monitorName}</span>
+    <span class="monitor-tab-meta">
+      ${pollingIndicator}
+      <span>${monitor.newListings || 0} new</span>
+      <span>${monitor.totalListings || 0} total</span>
+    </span>
   `;
   return button;
 }
@@ -880,20 +889,28 @@ function listingCard(listing) {
 
 function renderMonitorList(payload) {
   const monitors = payload.monitors || [];
-  els.monitorsCount.textContent = String(monitors.length);
-  els.monitorList.innerHTML = "";
+  if (els.monitorsCount) {
+    els.monitorsCount.textContent = String(monitors.length);
+  }
+  if (els.monitorTabsCount) {
+    els.monitorTabsCount.textContent = String(monitors.length);
+  }
+  if (!els.monitorTabs) {
+    return;
+  }
+  els.monitorTabs.innerHTML = "";
   applyMobilePanelState();
   if (monitors.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "empty-state";
+    empty.className = "empty-state monitor-tabs-empty";
     empty.textContent = "No monitors configured.";
-    els.monitorList.appendChild(empty);
+    els.monitorTabs.appendChild(empty);
     return;
   }
 
   monitors.forEach((monitor) => {
     const active = monitor.id === payload.activeMonitorId;
-    els.monitorList.appendChild(monitorCard(monitor, active));
+    els.monitorTabs.appendChild(monitorCard(monitor, active));
   });
 }
 
@@ -1123,24 +1140,26 @@ async function refreshDashboard() {
   renderDashboard(payload);
 }
 
-els.monitorList.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-monitor-id]");
-  if (!button) {
-    return;
-  }
-  const monitorId = button.dataset.monitorId;
-  if (!monitorId || monitorId === appState.dashboard?.activeMonitorId) {
-    return;
-  }
-  try {
-    pushDebugLog("info", "Switching active monitor", { monitorId });
-    const payload = await callJson(`/api/monitors/${monitorId}/activate`, "POST");
-    renderDashboard(payload);
-  } catch (error) {
-    pushDebugLog("error", "Failed to activate monitor", { monitorId, error: error.message });
-    alert(`Failed to activate monitor: ${error.message}`);
-  }
-});
+if (els.monitorTabs) {
+  els.monitorTabs.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-monitor-id]");
+    if (!button) {
+      return;
+    }
+    const monitorId = button.dataset.monitorId;
+    if (!monitorId || monitorId === appState.dashboard?.activeMonitorId) {
+      return;
+    }
+    try {
+      pushDebugLog("info", "Switching active monitor", { monitorId });
+      const payload = await callJson(`/api/monitors/${monitorId}/activate`, "POST");
+      renderDashboard(payload);
+    } catch (error) {
+      pushDebugLog("error", "Failed to activate monitor", { monitorId, error: error.message });
+      alert(`Failed to activate monitor: ${error.message}`);
+    }
+  });
+}
 
 els.addMonitorForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1161,6 +1180,8 @@ els.addMonitorForm.addEventListener("submit", async (event) => {
     els.addMonitorForm.reset();
     els.addPollInterval.value = "60";
     els.addNewBadge.value = "120";
+    appState.monitorAddPanelOpen = false;
+    applyMonitorAddPanelState();
     renderDashboard(payload);
   } catch (error) {
     pushDebugLog("error", "Failed to add monitor", { error: error.message });
@@ -1368,6 +1389,25 @@ if (els.monitorPanelToggleBtn) {
   });
 }
 
+if (els.monitorAddToggleBtn) {
+  els.monitorAddToggleBtn.addEventListener("click", () => {
+    appState.monitorAddPanelOpen = !appState.monitorAddPanelOpen;
+    applyMonitorAddPanelState();
+    if (appState.monitorAddPanelOpen && els.addMonitorName) {
+      setTimeout(() => {
+        els.addMonitorName.focus();
+      }, 0);
+    }
+  });
+}
+
+if (els.monitorAddCloseBtn) {
+  els.monitorAddCloseBtn.addEventListener("click", () => {
+    appState.monitorAddPanelOpen = false;
+    applyMonitorAddPanelState();
+  });
+}
+
 if (els.monitorSettingsToggleBtn) {
   els.monitorSettingsToggleBtn.addEventListener("click", () => {
     appState.monitorSettingsCollapsed = !appState.monitorSettingsCollapsed;
@@ -1452,4 +1492,5 @@ if (typeof window !== "undefined") {
 pushDebugLog("info", "Initial UI ready.");
 applyMobilePanelState();
 applyMonitorSettingsPanelState();
+applyMonitorAddPanelState();
 connectSse();
