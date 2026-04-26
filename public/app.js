@@ -260,6 +260,57 @@ function formatConfidence(value) {
   return `${Math.round(numeric * 100)}%`;
 }
 
+function formatChangeType(value) {
+  const normalized = (value || "").toString().trim().toLowerCase();
+  const labels = {
+    price_drop: "Price drop",
+    price_increase: "Price increase",
+    details_update: "Details update",
+    photo_update: "Photo update",
+    link_update: "Link update",
+    repost: "Repost",
+  };
+  return labels[normalized] || "-";
+}
+
+function buildChangeBadge(changeType) {
+  const normalized = (changeType || "").toString().trim().toLowerCase();
+  const specs = {
+    price_drop: {
+      label: "PRICE DROP",
+      className: "change-price-drop",
+    },
+    price_increase: {
+      label: "PRICE UP",
+      className: "change-price-increase",
+    },
+    details_update: {
+      label: "DETAILS UPDATED",
+      className: "change-details",
+    },
+    photo_update: {
+      label: "PHOTO UPDATED",
+      className: "change-photo",
+    },
+    link_update: {
+      label: "LINK UPDATED",
+      className: "change-link",
+    },
+    repost: {
+      label: "REPOST",
+      className: "change-repost",
+    },
+  };
+  const spec = specs[normalized];
+  if (!spec) {
+    return null;
+  }
+  const badge = document.createElement("span");
+  badge.className = `badge ${spec.className}`;
+  badge.textContent = spec.label;
+  return badge;
+}
+
 function makeDetailItem(label, value) {
   const row = document.createElement("div");
   row.className = "listing-detail-item";
@@ -307,6 +358,11 @@ function buildListingDetails(listing, model, year, price, locationLabel) {
     makeDetailItem("Year", year || "-"),
     makeDetailItem("Price", price || "-"),
     makeDetailItem("Location", locationLabel),
+    makeDetailItem("Change type", formatChangeType(listing.changeType)),
+    makeDetailItem("Change reason", listing.changeReason || "-"),
+    makeDetailItem("Change confidence", formatConfidence(listing.changeConfidence)),
+    makeDetailItem("Classified by", listing.changedBy || "-"),
+    makeDetailItem("Repost of ID", listing.repostOfId || "-"),
     makeDetailItem("Title", listing.title || "-"),
     makeDetailItem("Updated text", listing.updatedText || "-"),
     makeDetailItem("First seen", formatDateTime(listing.firstSeenAt)),
@@ -419,6 +475,10 @@ function listingCard(listing) {
     badge.textContent = "NOT IN LATEST SCAN";
     badges.appendChild(badge);
   }
+  const changeBadge = buildChangeBadge(listing.changeType);
+  if (changeBadge) {
+    badges.appendChild(changeBadge);
+  }
 
   const toggleBtn = document.createElement("button");
   toggleBtn.type = "button";
@@ -517,7 +577,17 @@ function renderActiveMonitor(payload) {
   const filteredListings = buildFilteredListings(activeMonitor, appState.activeSegment);
   els.listingsCount.textContent = String(filteredListings.length);
 
-  els.segmentSummary.textContent = `${filteredListings.length} shown / ${allListings.length} total · ${activeMonitor.newListings} marked NEW · ${activeMonitor.staleListings} stale`;
+  const normalizationSummary = activeMonitor.lastPoll?.normalization;
+  const classificationSummary = activeMonitor.lastPoll?.changeClassification;
+  const normalizationText =
+    normalizationSummary && typeof normalizationSummary.message === "string"
+      ? normalizationSummary.message
+      : "Normalization unavailable.";
+  const classificationText =
+    classificationSummary && typeof classificationSummary.message === "string"
+      ? classificationSummary.message
+      : "Change classification unavailable.";
+  els.segmentSummary.textContent = `${filteredListings.length} shown / ${allListings.length} total · ${activeMonitor.newListings} marked NEW · ${activeMonitor.staleListings} stale · ${normalizationText} · ${classificationText}`;
 
   els.listingFeed.innerHTML = "";
   if (filteredListings.length === 0) {

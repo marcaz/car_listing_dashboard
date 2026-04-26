@@ -572,6 +572,38 @@ dd {
   background: #7f1d1d;
 }
 
+.badge.change-price-drop {
+  color: #022c22;
+  background: #34d399;
+  font-weight: 700;
+}
+
+.badge.change-price-increase {
+  color: #fef2f2;
+  background: #b91c1c;
+}
+
+.badge.change-details {
+  color: #cffafe;
+  background: #155e75;
+}
+
+.badge.change-photo {
+  color: #ede9fe;
+  background: #5b21b6;
+}
+
+.badge.change-link {
+  color: #eef2ff;
+  background: #3730a3;
+}
+
+.badge.change-repost {
+  color: #3f2d06;
+  background: #facc15;
+  font-weight: 700;
+}
+
 @media (max-width: 760px) {
   .listing-main {
     width: 100%;
