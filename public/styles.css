@@ -685,16 +685,14 @@ input {
   white-space: nowrap;
 }
 
-.monitor-settings-toggle-btn .monitor-settings-toggle-icon-hide {
-  display: none;
-}
-
-.monitor-settings-toggle-btn.monitor-settings-open .monitor-settings-toggle-icon-show {
-  display: none;
-}
-
-.monitor-settings-toggle-btn.monitor-settings-open .monitor-settings-toggle-icon-hide {
+.monitor-settings-toggle-chevron {
   display: block;
+  transition: transform 160ms ease;
+  transform-origin: 50% 50%;
+}
+
+.monitor-settings-toggle-btn.monitor-settings-open .monitor-settings-toggle-chevron {
+  transform: rotate(180deg);
 }
 
 .monitor-settings-panel[hidden] {
