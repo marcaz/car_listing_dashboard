@@ -34,7 +34,7 @@ const els = {
   statusSource: document.getElementById("status-source"),
   statusMessage: document.getElementById("status-message"),
   listingSegments: document.getElementById("listing-segments"),
-  listingSortBy: document.getElementById("listing-sort-by"),
+  listingSortBy: document.getElementById("listing-sort"),
   segmentSummary: document.getElementById("segment-summary"),
   listingsCount: document.getElementById("listings-count"),
   listingFeed: document.getElementById("listing-feed"),
@@ -374,15 +374,44 @@ function sortListings(listings, sortBy) {
         return compareTextAsc(inferModel(a), inferModel(b));
       });
       break;
+    case "year_asc":
+      sorted.sort((a, b) => {
+        const aYear = Number(inferYear(a));
+        const bYear = Number(inferYear(b));
+        const aFinite = Number.isFinite(aYear);
+        const bFinite = Number.isFinite(bYear);
+        if (!aFinite && !bFinite) {
+          return compareTextAsc(inferModel(a), inferModel(b));
+        }
+        if (!aFinite) {
+          return 1;
+        }
+        if (!bFinite) {
+          return -1;
+        }
+        if (aYear !== bYear) {
+          return aYear - bYear;
+        }
+        return compareTextAsc(inferModel(a), inferModel(b));
+      });
+      break;
     case "model_asc":
       sorted.sort((a, b) => compareTextAsc(inferModel(a), inferModel(b)));
       break;
-    case "updated_desc":
+    case "recently_changed":
       sorted.sort((a, b) => {
         const aChanged = Date.parse(a.lastChangedAt || "") || 0;
         const bChanged = Date.parse(b.lastChangedAt || "") || 0;
         return bChanged - aChanged;
       });
+      break;
+    case "location_asc":
+      sorted.sort((a, b) =>
+        compareTextAsc(
+          `${inferCity(a) || ""}, ${inferCountry(a) || ""}`,
+          `${inferCity(b) || ""}, ${inferCountry(b) || ""}`
+        )
+      );
       break;
     case "newest":
     default:

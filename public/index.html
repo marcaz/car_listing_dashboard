@@ -213,18 +213,22 @@
           <div id="listing-feed" class="listing-feed"></div>
         </section>
 
+        <section class="card debug-log-panel">
+          <div class="panel-head">
+            <h2>Application debug log</h2>
+            <div class="debug-log-actions">
+              <button id="debug-log-pause-btn" type="button" class="btn secondary small">Pause</button>
+              <button id="debug-log-clear-btn" type="button" class="btn secondary small">Clear</button>
+            </div>
+          </div>
+          <p class="muted tiny">
+            Use this panel to verify Claude pipeline events (normalization, fallback, classification).
+          </p>
+          <div id="debug-log-feed" class="debug-log-feed" aria-live="polite"></div>
+        </section>
+
       </section>
     </main>
-    <footer class="debug-footer">
-      <div class="debug-head">
-        <h2 class="debug-title">Application debug log</h2>
-        <div class="debug-actions">
-          <button id="debug-log-pause-btn" type="button" class="debug-action-btn">Pause</button>
-          <button id="debug-log-clear-btn" type="button" class="debug-action-btn">Clear</button>
-        </div>
-      </div>
-      <div id="debug-log-feed" class="debug-log" aria-live="polite"></div>
-    </footer>
     <script src="/app.js"></script>
   </body>
 </html>
