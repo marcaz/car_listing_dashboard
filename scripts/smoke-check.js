@@ -40,7 +40,8 @@ function run() {
   // Layout/overflow regression checks.
   assert(/\.main-column\s*\{[\s\S]*min-width:\s*0;/.test(css), "main-column min-width guard missing");
   assert(/\.main-column\s*\{[\s\S]*overflow:\s*hidden;/.test(css), "main-column overflow hidden missing");
-  assert(/\.layout\s*\{[\s\S]*grid-template-columns:\s*minmax\(300px,\s*360px\)\s*minmax\(0,\s*1fr\);/.test(css), "layout responsive columns missing");
+  assert(/\.layout\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\);/.test(css), "layout base single-column grid missing");
+  assert(/@media\s*\(max-width:\s*760px\)\s*\{[\s\S]*\.layout\s*\{[\s\S]*grid-template-columns:\s*1fr;/.test(css), "layout mobile single-column guard missing");
   assert(/\.url-chip\s*\{[\s\S]*text-overflow:\s*ellipsis;/.test(css), "url-chip truncation missing");
   assert(/input\s*\{[\s\S]*max-width:\s*100%;/.test(css), "input max-width 100% guard missing");
 

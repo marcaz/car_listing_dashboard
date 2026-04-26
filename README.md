@@ -83,7 +83,7 @@ If that happens, this app now reports an explicit error in Status and keeps prev
 
 - `npm start` - run server
 - `npm run check` - syntax checks for project JS files
-- `npm test` - alias for `npm run check`
+- `npm test` - syntax checks, UI smoke checks, and Node test suite
 
 ## Optional Claude fallback parser
 
