@@ -76,7 +76,7 @@ const actionState = {
 const appState = {
   dashboard: null,
   activeSegment: "all",
-  sortBy: "newest",
+  sortBy: "price_asc",
   expandedListingIds: new Set(),
   expandedListingMonitorId: null,
   debugLogPaused: false,
