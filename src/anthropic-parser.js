@@ -228,7 +228,7 @@ async function enrichListingsWithClaude(listings, options = {}) {
       listings,
       used: false,
       available: false,
-      message: "ANTHROPIC_API_KEY is missing. Claude fallback skipped.",
+      message: "Claude API key is missing. Configure it in UI settings or ANTHROPIC_API_KEY.",
       apiKeySource: config.apiKeySource,
     };
   }

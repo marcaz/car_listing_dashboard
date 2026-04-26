@@ -106,17 +106,6 @@ function renderClaudeControls(payload) {
   if (!actionState.togglingClaude) {
     els.claudeToggleBtn.disabled = !available;
   }
-  if (els.claudeSettingsForm) {
-    for (const field of els.claudeSettingsForm.elements) {
-      if (!field || typeof field !== "object" || !("disabled" in field)) {
-        continue;
-      }
-      if (field.id === "save-claude-settings-btn") {
-        continue;
-      }
-      field.disabled = !available;
-    }
-  }
   if (els.claudeApiKey) {
     els.claudeApiKey.placeholder = claudeSettings.hasApiKey
       ? `${claudeSettings.apiKeyMasked || "********"} (configured)`
@@ -146,7 +135,7 @@ function renderClaudeControls(payload) {
 
   if (!available) {
     els.claudeStatusText.textContent =
-      "Claude fallback unavailable: set ANTHROPIC_API_KEY in environment.";
+      "Claude fallback currently unavailable. Set API key below and save settings.";
     return;
   }
 
@@ -539,9 +528,6 @@ els.claudeToggleBtn.addEventListener("click", async () => {
 
 els.claudeSettingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (els.claudeToggleBtn.dataset.forceDisabled === "true") {
-    return;
-  }
   const current = appState.dashboard?.settings || {};
   const claudeCurrent = current.claude || {};
   actionState.savingClaudeSettings = true;
