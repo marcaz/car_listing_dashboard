@@ -1,5 +1,10 @@
 const cheerio = require("cheerio");
 const { chromium } = require("playwright");
+const {
+  extractLocationFromText: extractNormalizedLocationFromText,
+  normalizeCityName,
+  normalizeCountryName,
+} = require("./location-normalizer");
 const { cleanVehicleDisplayName } = require("./listing-normalizer");
 
 const USER_AGENT =
@@ -253,59 +258,11 @@ function extractPriceFromNode(node) {
 }
 
 function looksLikePlaceName(value) {
-  const normalized = normalizeWhitespace(value);
-  if (!normalized) {
-    return false;
-  }
-  if (/\d/.test(normalized)) {
-    return false;
-  }
-  if (/(km|kw|ag|mėn|men|automatin|benzin|dyzel|elektr|hybrid|visureig|krosover|sedan)/i.test(normalized)) {
-    return false;
-  }
-  return /^[\p{L}\-.' ]{2,40}$/u.test(normalized);
+  return Boolean(normalizeCityName(value) || normalizeCountryName(value));
 }
 
 function isLikelyCountry(value) {
-  const normalized = normalizeWhitespace(value).toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-  const knownCountries = new Set([
-    "lietuva",
-    "latvija",
-    "estija",
-    "lenkija",
-    "vokietija",
-    "prancūzija",
-    "italija",
-    "ispanija",
-    "belgija",
-    "nyderlandai",
-    "suomija",
-    "švedija",
-    "norvegija",
-    "danija",
-    "čekija",
-    "slovakija",
-    "austrija",
-    "šveicarija",
-    "jav",
-    "uk",
-    "lithuania",
-    "latvia",
-    "estonia",
-    "poland",
-    "germany",
-    "france",
-    "italy",
-    "spain",
-    "sweden",
-    "norway",
-    "denmark",
-    "finland",
-  ]);
-  return knownCountries.has(normalized);
+  return Boolean(normalizeCountryName(value));
 }
 
 function extractLocationTextFromNode(node) {
@@ -554,15 +511,15 @@ function extractStructuredFromNode($, node) {
         /(city|town|miestas|settlement|locality|addresslocality|municipality)/i.test(lowerKey) &&
         typeof rawValue === "string"
       ) {
-        const normalized = normalizeWhitespace(rawValue);
-        if (looksLikePlaceName(normalized)) {
+        const normalized = normalizeCityName(rawValue);
+        if (normalized) {
           data.city = normalized;
         }
       }
 
       if (!data.country && /(country|salis|šalis|valstyb|nation|addresscountry)/i.test(lowerKey)) {
-        const normalized = normalizeWhitespace(String(rawValue || ""));
-        if (looksLikePlaceName(normalized) || isLikelyCountry(normalized)) {
+        const normalized = normalizeCountryName(rawValue);
+        if (normalized) {
           data.country = normalized;
         }
       }
@@ -609,6 +566,11 @@ function extractLocationFromText(value) {
   const normalized = normalizeWhitespace(value);
   if (!normalized) {
     return { city: null, country: null };
+  }
+
+  const normalizedLocation = extractNormalizedLocationFromText(normalized);
+  if (normalizedLocation.city || normalizedLocation.country) {
+    return normalizedLocation;
   }
 
   const matches = [
@@ -887,5 +849,6 @@ async function scrapeAutoplius(searchUrl) {
 }
 
 module.exports = {
+  extractLocationFromText,
   scrapeAutoplius,
 };

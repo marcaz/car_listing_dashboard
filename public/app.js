@@ -534,28 +534,124 @@ function inferPrice(listing) {
   return extractPriceFromText(listing.updatedText || "");
 }
 
+const KNOWN_LOCATION_CITY_NAMES = new Map(
+  [
+    "Akmenė",
+    "Alytus",
+    "Anykščiai",
+    "Birštonas",
+    "Biržai",
+    "Druskininkai",
+    "Elektrėnai",
+    "Gargždai",
+    "Ignalina",
+    "Jonava",
+    "Joniškis",
+    "Jurbarkas",
+    "Kaišiadorys",
+    "Kaunas",
+    "Kėdainiai",
+    "Klaipėda",
+    "Marijampolė",
+    "Mažeikiai",
+    "Palanga",
+    "Panevėžys",
+    "Šiauliai",
+    "Tauragė",
+    "Telšiai",
+    "Ukmergė",
+    "Utena",
+    "Vilnius",
+  ].map((city) => [city.toLowerCase(), city])
+);
+
+const KNOWN_LOCATION_COUNTRY_NAMES = new Set(["lietuva", "lithuania", "latvija", "latvia", "estija", "estonia"]);
+const LOCATION_CITY_ALIASES = new Map([["vilniaus", "Vilnius"]]);
+
+function normalizeCountryDisplayName(value) {
+  const normalized = String(value || "").replace(/\s+/g, " ").trim();
+  if (!normalized || normalized.length > 32) {
+    return null;
+  }
+  const aliases = new Map([
+    ["lt", "Lithuania"],
+    ["lietuva", "Lithuania"],
+    ["lithuania", "Lithuania"],
+    ["lv", "Latvia"],
+    ["latvija", "Latvia"],
+    ["latvia", "Latvia"],
+    ["ee", "Estonia"],
+    ["estija", "Estonia"],
+    ["estonia", "Estonia"],
+  ]);
+  const lower = normalized.toLowerCase();
+  return aliases.get(lower) || (KNOWN_LOCATION_COUNTRY_NAMES.has(lower) ? normalized : null);
+}
+
+function normalizeCityDisplayName(value) {
+  const normalized = String(value || "")
+    .replace(/^(?:miestas|city|location|vieta)\s*[:\-]?\s*/i, "")
+    .replace(/\b(?:m\.|miestas)\s*$/gi, "")
+    .replace(/iaus\s*$/i, "ius")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized || normalized.length > 42) {
+    return null;
+  }
+  if (/\d/.test(normalized) || /€|eur|kw|km|benzinas|dyzelinas|automatin|sedan|visureig|krosover/i.test(normalized)) {
+    return null;
+  }
+  if (!/^[\p{L}\-.' ]{2,42}$/u.test(normalized)) {
+    return null;
+  }
+  const known = KNOWN_LOCATION_CITY_NAMES.get(normalized.toLowerCase());
+  if (known) {
+    return known;
+  }
+  const alias = LOCATION_CITY_ALIASES.get(normalized.toLowerCase());
+  if (alias) {
+    return alias;
+  }
+  return normalizeCountryDisplayName(normalized) ? null : normalized;
+}
+
+function inferLocationFromListingText(listing) {
+  const text = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ").trim();
+  if (!text) {
+    return { city: null, country: null };
+  }
+  const labeledCity = text.match(/(?:miestas|city|location|vieta)\s*[:\-]?\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,42})/iu);
+  if (labeledCity) {
+    return { city: normalizeCityDisplayName(labeledCity[1]), country: null };
+  }
+  const locationMatch = text.match(/([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,42})\s*[,|/]\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})\s*$/u);
+  if (locationMatch) {
+    return {
+      city: normalizeCityDisplayName(locationMatch[1]),
+      country: normalizeCountryDisplayName(locationMatch[2]),
+    };
+  }
+  for (const [lowerCity, displayCity] of KNOWN_LOCATION_CITY_NAMES) {
+    const escaped = lowerCity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(?:^|[^\\p{L}])${escaped}(?:$|[^\\p{L}])`, "iu").test(text)) {
+      return { city: displayCity, country: null };
+    }
+  }
+  return { city: null, country: null };
+}
+
 function inferCity(listing) {
   if (listing.city) {
     return listing.city;
   }
-  const title = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ");
-  const locationMatch = title.match(/,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})(?:,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32}))?\s*$/u);
-  if (!locationMatch) {
-    return null;
-  }
-  return locationMatch[1]?.trim() || null;
+  return inferLocationFromListingText(listing).city;
 }
 
 function inferCountry(listing) {
   if (listing.country) {
     return listing.country;
   }
-  const title = `${listing.title || ""} ${listing.updatedText || ""}`.replace(/\s+/g, " ");
-  const locationMatch = title.match(/,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32})(?:,\s*([A-ZĄČĘĖĮŠŲŪŽ][\p{L}\-.' ]{1,32}))?\s*$/u);
-  if (!locationMatch) {
-    return null;
-  }
-  return locationMatch[2]?.trim() || null;
+  return inferLocationFromListingText(listing).country;
 }
 
 function sanitizeLocationDisplayValue(value) {

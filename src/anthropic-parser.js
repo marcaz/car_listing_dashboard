@@ -1,5 +1,10 @@
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const { cleanVehicleDisplayName } = require("./listing-normalizer");
+const {
+  extractLocationFromText,
+  normalizeCityName,
+  normalizeCountryName,
+} = require("./location-normalizer");
 const DEFAULT_MODEL = "claude-3-5-haiku-latest";
 const DEFAULT_REASONING_STRENGTH = "balanced";
 const CHANGE_TYPES = new Set([
@@ -84,52 +89,11 @@ function normalizeModelDeterministic(model, title) {
 }
 
 function normalizeCityDeterministic(city) {
-  const normalized = sanitizeString(city);
-  if (!normalized) {
-    return null;
-  }
-  if (normalized.length > 48) {
-    return null;
-  }
-  if (/\d/.test(normalized) && /€|eur|kw|km|benzinas|dyzelinas|automatin/i.test(normalized)) {
-    return null;
-  }
-  const cleaned = normalized.replace(/\b(m\.?|raj\.?|miestas)\b/gi, "").replace(/\s+/g, " ").trim();
-  if (cleaned.length < 2 || cleaned.length > 40) {
-    return null;
-  }
-  if (/\d/.test(cleaned) && !/^[A-Za-zĄČĘĖĮŠŲŪŽąćęėįšųūž.\- ]+$/.test(cleaned)) {
-    return null;
-  }
-  return toTitleCase(cleaned);
+  return normalizeCityName(city);
 }
 
 function normalizeCountryDeterministic(country) {
-  const normalized = sanitizeString(country);
-  if (!normalized) {
-    return null;
-  }
-  if (normalized.length > 32) {
-    return null;
-  }
-  if (/\d/.test(normalized) || /€|eur|kw|km|benzinas|dyzelinas|automatin/i.test(normalized)) {
-    return null;
-  }
-  const aliasMap = new Map([
-    ["lt", "Lithuania"],
-    ["lietuva", "Lithuania"],
-    ["estija", "Estonia"],
-    ["ee", "Estonia"],
-    ["latvija", "Latvia"],
-    ["lv", "Latvia"],
-    ["lenkija", "Poland"],
-    ["pl", "Poland"],
-  ]);
-  const alias = aliasMap.get(normalized.toLowerCase());
-  if (alias) {
-    return alias;
-  }
-  return toTitleCase(normalized);
+  return normalizeCountryName(country);
 }
 
 function inferLocationFromTextDeterministic(input) {
@@ -137,28 +101,7 @@ function inferLocationFromTextDeterministic(input) {
   if (!normalized) {
     return { city: null, country: null };
   }
-  if (normalized.length > 220) {
-    return { city: null, country: null };
-  }
-  const parts = normalized
-    .split(",")
-    .map((part) => sanitizeString(part))
-    .filter(Boolean);
-  if (parts.length === 0) {
-    return { city: null, country: null };
-  }
-  if (parts.length === 1) {
-    return {
-      city: normalizeCityDeterministic(parts[0]),
-      country: null,
-    };
-  }
-  const countryCandidate = normalizeCountryDeterministic(parts[parts.length - 1]);
-  const cityCandidate = normalizeCityDeterministic(parts[parts.length - 2]);
-  return {
-    city: cityCandidate,
-    country: countryCandidate,
-  };
+  return extractLocationFromText(normalized);
 }
 
 function clampNumber(value, min, max, fallback) {
